@@ -102,21 +102,64 @@
 }
 
 @layer utilities {
+  /* Glow effects */
   .glow-blue {
-    box-shadow: 0 0 20px oklch(0.58 0.22 255 / 25%);
+    box-shadow: 0 0 30px oklch(0.58 0.22 255 / 30%), 0 0 60px oklch(0.58 0.22 255 / 15%);
   }
   .glow-blue-sm {
-    box-shadow: 0 0 10px oklch(0.58 0.22 255 / 20%);
+    box-shadow: 0 0 15px oklch(0.58 0.22 255 / 25%);
+  }
+  .glow-blue-intense {
+    box-shadow: 0 0 40px oklch(0.58 0.22 255 / 40%), 0 0 80px oklch(0.58 0.22 255 / 20%), 0 0 120px oklch(0.58 0.22 255 / 10%);
   }
   .glow-green {
-    box-shadow: 0 0 12px oklch(0.62 0.18 152 / 30%);
+    box-shadow: 0 0 20px oklch(0.62 0.18 152 / 35%);
   }
   .glow-red {
-    box-shadow: 0 0 12px oklch(0.63 0.22 25 / 30%);
+    box-shadow: 0 0 20px oklch(0.63 0.22 25 / 35%);
+  }
+  .glow-yellow {
+    box-shadow: 0 0 20px oklch(0.72 0.18 55 / 35%);
   }
   .border-glow {
-    border-color: oklch(0.58 0.22 255 / 40%);
+    border-color: oklch(0.58 0.22 255 / 50%);
   }
+
+  /* Orb pulsation */
+  .orb-pulse {
+    animation: orb-pulse 3s ease-in-out infinite;
+  }
+  @keyframes orb-pulse {
+    0%, 100% { 
+      transform: scale(1); 
+      box-shadow: 0 0 40px oklch(0.58 0.22 255 / 40%), 0 0 80px oklch(0.58 0.22 255 / 20%);
+    }
+    50% { 
+      transform: scale(1.03); 
+      box-shadow: 0 0 60px oklch(0.58 0.22 255 / 50%), 0 0 100px oklch(0.58 0.22 255 / 25%);
+    }
+  }
+
+  /* Orbital ring rotation */
+  .orbit-ring {
+    animation: orbit-ring 20s linear infinite;
+  }
+  @keyframes orbit-ring {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .orbit-ring-reverse {
+    animation: orbit-ring-reverse 25s linear infinite;
+  }
+  @keyframes orbit-ring-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+  .orbit-ring-slow {
+    animation: orbit-ring 35s linear infinite;
+  }
+
+  /* Status pulse */
   .pulse-dot {
     animation: pulse-dot 2s ease-in-out infinite;
   }
@@ -124,6 +167,47 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(0.85); }
   }
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* Particle float */
+  .particle-float {
+    animation: particle-float 4s ease-in-out infinite;
+  }
+  @keyframes particle-float {
+    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.6; }
+    50% { transform: translateY(-8px) translateX(4px); opacity: 1; }
+  }
+
+  /* Flow animations */
+  .flow-in {
+    animation: flow-in 0.5s ease-out forwards;
+  }
+  @keyframes flow-in {
+    from { opacity: 0; transform: translateX(-20px) scale(0.95); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  .flow-out {
+    animation: flow-out 0.5s ease-out forwards;
+  }
+  @keyframes flow-out {
+    from { opacity: 0; transform: translateX(20px) scale(0.95); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  .flow-up {
+    animation: flow-up 0.4s ease-out forwards;
+  }
+  @keyframes flow-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Slide animations */
   .slide-in {
     animation: slide-in 0.35s ease-out;
   }
@@ -138,11 +222,40 @@
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Processing state */
+  .processing {
+    animation: processing 1.5s ease-in-out infinite;
+  }
+  @keyframes processing {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Data stream */
+  .data-stream {
+    animation: data-stream 2s linear infinite;
+  }
+  @keyframes data-stream {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+
+  /* Scanning */
   .scanning {
     animation: scanning 1.6s linear infinite;
   }
   @keyframes scanning {
     0% { background-position: -200% center; }
     100% { background-position: 200% center; }
+  }
+
+  /* Connection line pulse */
+  .connection-pulse {
+    animation: connection-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes connection-pulse {
+    0%, 100% { stroke-dashoffset: 0; opacity: 0.3; }
+    50% { stroke-dashoffset: 20; opacity: 1; }
   }
 }
