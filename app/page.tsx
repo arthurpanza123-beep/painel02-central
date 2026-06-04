@@ -371,81 +371,109 @@ export default function JarvisPage() {
                   </div>
                 </div>
 
-                {/* Center - JARVIS Core - LARGER */}
+                {/* Center - JARVIS Core - Premium Neon */}
                 <div className="col-span-12 lg:col-span-6">
                   <div className="flex flex-col items-center">
                     {/* Core orb container */}
-                    <div className="relative w-[480px] h-[480px] flex items-center justify-center">
-                      {/* Outermost ring - subtle */}
-                      <div className="absolute w-[460px] h-[460px] rounded-full border border-primary/5 orbit-ring-slow" />
-                      {/* Outer ring */}
-                      <div className="absolute w-[400px] h-[400px] rounded-full border border-primary/10 orbit-ring-slow" />
-                      {/* Middle ring - more visible */}
-                      <div className="absolute w-[340px] h-[340px] rounded-full border-2 border-primary/20 orbit-ring-reverse" />
-                      {/* Inner ring - brightest */}
-                      <div className="absolute w-[290px] h-[290px] rounded-full border-2 border-primary/35 orbit-ring" />
+                    <div className="relative w-[500px] h-[500px] flex items-center justify-center">
+                      {/* Ambient glow behind everything */}
+                      <div className="absolute w-[600px] h-[600px] rounded-full bg-primary/[0.03] blur-[100px]" />
                       
-                      {/* Inner glow gradient */}
+                      {/* Outermost ring with pulse */}
+                      <div className="absolute w-[480px] h-[480px] rounded-full border border-primary/10 orbit-ring-slow ring-pulse" />
+                      
+                      {/* Outer neon ring */}
+                      <div className="absolute w-[420px] h-[420px] rounded-full border-[1.5px] border-primary/25 orbit-ring-slow ring-pulse-delayed neon-ring" />
+                      
+                      {/* Middle ring - brightest with intense glow */}
+                      <div className="absolute w-[350px] h-[350px] rounded-full border-2 border-primary/40 orbit-ring-reverse ring-pulse-delayed-2 neon-ring-intense" />
+                      
+                      {/* Inner ring - solid glow */}
+                      <div className="absolute w-[290px] h-[290px] rounded-full border-2 border-primary/50 orbit-ring neon-ring-intense" />
+                      
+                      {/* Energy particles orbiting */}
+                      <div className="absolute w-[420px] h-[420px] orbit-ring-slow">
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-primary energy-particle" />
+                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-primary/70 energy-particle" style={{ animationDelay: "1s" }} />
+                      </div>
+                      <div className="absolute w-[350px] h-[350px] orbit-ring-reverse">
+                        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-2 h-2 rounded-full bg-chart-5 energy-particle" style={{ animationDelay: "0.5s" }} />
+                        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary/60 energy-particle" style={{ animationDelay: "1.5s" }} />
+                      </div>
+                      <div className="absolute w-[290px] h-[290px] orbit-ring">
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-primary energy-particle" style={{ animationDelay: "0.7s" }} />
+                      </div>
+                      
+                      {/* Inner glow gradient ring */}
                       <div className={cn(
                         "absolute w-[260px] h-[260px] rounded-full",
-                        "bg-gradient-to-br from-primary/20 via-primary/5 to-primary/15",
+                        "bg-gradient-to-br from-primary/25 via-primary/8 to-primary/20",
                         isProcessing ? "orbit-ring-fast" : "orbit-ring-slow"
                       )} />
 
-                      {/* Core orb - LARGER */}
+                      {/* Core orb - premium neon */}
                       <div className={cn(
                         "relative w-[220px] h-[220px] rounded-full",
-                        "bg-gradient-to-br from-[#0a1628] via-[#0d1f35] to-[#0a1628]",
-                        "border border-primary/40",
+                        "bg-gradient-to-br from-[#080f1f] via-[#0c1a30] to-[#080f1f]",
+                        "border-2 border-primary/50",
                         "flex flex-col items-center justify-center",
                         isProcessing ? "jarvis-processing" : "jarvis-breathe"
                       )}>
+                        {/* Inner highlight */}
+                        <div className="absolute inset-0 rounded-full core-inner-glow" />
+                        
                         {/* Scanning effect */}
                         {isProcessing && (
                           <div className="absolute inset-0 rounded-full overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent scanning" style={{ backgroundSize: "200% 100%" }} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/30 to-transparent scanning" style={{ backgroundSize: "200% 100%" }} />
                           </div>
                         )}
 
-                        {/* Inner gradient overlay */}
-                        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-primary/5 via-transparent to-primary/8" />
-
                         {/* Content */}
                         <div className="relative z-10 text-center px-6">
-                          <div className={cn("text-sm font-bold tracking-[0.25em] mb-2", config.color)}>
+                          <div className={cn("text-sm font-bold tracking-[0.25em] mb-2 text-glow", config.color)}>
                             {config.label}
                           </div>
-                          <div className="text-sm text-foreground/80 max-w-[160px] leading-relaxed">
+                          <div className="text-sm text-foreground/85 max-w-[160px] leading-relaxed">
                             {statusText}
                           </div>
-                          {/* Dots animation when idle or processing */}
-                          <div className="flex items-center justify-center gap-1.5 mt-4">
-                            <div className={cn("w-2 h-2 rounded-full bg-primary/70", isProcessing && "animate-pulse")} style={{ animationDelay: "0ms" }} />
-                            <div className={cn("w-2 h-2 rounded-full bg-primary/70", isProcessing && "animate-pulse")} style={{ animationDelay: "150ms" }} />
-                            <div className={cn("w-2 h-2 rounded-full bg-primary/70", isProcessing && "animate-pulse")} style={{ animationDelay: "300ms" }} />
+                          {/* Dots animation - always visible, pulsing */}
+                          <div className="flex items-center justify-center gap-2 mt-4">
+                            <div className={cn(
+                              "w-2 h-2 rounded-full bg-primary energy-particle",
+                              isProcessing ? "animate-pulse" : ""
+                            )} style={{ animationDelay: "0ms" }} />
+                            <div className={cn(
+                              "w-2 h-2 rounded-full bg-primary energy-particle",
+                              isProcessing ? "animate-pulse" : ""
+                            )} style={{ animationDelay: "200ms" }} />
+                            <div className={cn(
+                              "w-2 h-2 rounded-full bg-primary energy-particle",
+                              isProcessing ? "animate-pulse" : ""
+                            )} style={{ animationDelay: "400ms" }} />
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Title - larger */}
-                    <div className="text-center mt-6">
-                      <h1 className="text-2xl font-bold tracking-[0.3em] text-foreground text-glow">
+                    {/* Title - larger with glow */}
+                    <div className="text-center mt-4">
+                      <h1 className="text-2xl font-bold tracking-[0.35em] text-foreground text-glow">
                         JARVIS
                       </h1>
-                      <p className="text-xs text-muted-foreground/60 tracking-[0.2em] mt-2">
+                      <p className="text-xs text-muted-foreground/50 tracking-[0.2em] mt-2">
                         CENTRAL PLAY
                       </p>
                     </div>
 
                     {/* Context pill */}
                     {context && (
-                      <div className="mt-5 flex items-center gap-4 px-6 py-3 rounded-full bg-card/60 border border-border/40">
-                        <User className="w-4 h-4 text-muted-foreground/70" />
+                      <div className="mt-5 flex items-center gap-4 px-6 py-3 rounded-full bg-card/70 border border-primary/20 backdrop-blur-sm">
+                        <User className="w-4 h-4 text-primary/70" />
                         <span className="text-sm font-medium text-foreground">{context.name}</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
                         <span className="text-sm text-muted-foreground">{context.device}</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
                         <span className="text-sm font-medium text-primary">{context.flow}</span>
                       </div>
                     )}
