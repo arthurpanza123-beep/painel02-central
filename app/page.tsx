@@ -371,91 +371,82 @@ export default function JarvisPage() {
                   </div>
                 </div>
 
-                {/* Center - JARVIS Core */}
+                {/* Center - JARVIS Core - LARGER */}
                 <div className="col-span-12 lg:col-span-6">
                   <div className="flex flex-col items-center">
-                    {/* Core orb */}
-                    <div className="relative">
-                      {/* Outer rings */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-[380px] h-[380px] rounded-full border border-primary/8 orbit-ring-slow" />
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-[330px] h-[330px] rounded-full border border-primary/12 orbit-ring-reverse" />
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-[280px] h-[280px] rounded-full border border-primary/18 orbit-ring" />
-                      </div>
+                    {/* Core orb container */}
+                    <div className="relative w-[480px] h-[480px] flex items-center justify-center">
+                      {/* Outermost ring - subtle */}
+                      <div className="absolute w-[460px] h-[460px] rounded-full border border-primary/5 orbit-ring-slow" />
+                      {/* Outer ring */}
+                      <div className="absolute w-[400px] h-[400px] rounded-full border border-primary/10 orbit-ring-slow" />
+                      {/* Middle ring - more visible */}
+                      <div className="absolute w-[340px] h-[340px] rounded-full border-2 border-primary/20 orbit-ring-reverse" />
+                      {/* Inner ring - brightest */}
+                      <div className="absolute w-[290px] h-[290px] rounded-full border-2 border-primary/35 orbit-ring" />
                       
-                      {/* Inner glow ring */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className={cn(
-                          "w-[240px] h-[240px] rounded-full",
-                          "bg-gradient-to-br from-primary/15 via-transparent to-primary/10",
-                          isProcessing ? "orbit-ring-fast" : "orbit-ring-slow"
-                        )} />
-                      </div>
-
-                      {/* Core */}
+                      {/* Inner glow gradient */}
                       <div className={cn(
-                        "relative w-[200px] h-[200px] rounded-full mx-auto",
-                        "bg-gradient-to-br from-card via-secondary/60 to-card",
-                        "border border-primary/30",
+                        "absolute w-[260px] h-[260px] rounded-full",
+                        "bg-gradient-to-br from-primary/20 via-primary/5 to-primary/15",
+                        isProcessing ? "orbit-ring-fast" : "orbit-ring-slow"
+                      )} />
+
+                      {/* Core orb - LARGER */}
+                      <div className={cn(
+                        "relative w-[220px] h-[220px] rounded-full",
+                        "bg-gradient-to-br from-[#0a1628] via-[#0d1f35] to-[#0a1628]",
+                        "border border-primary/40",
                         "flex flex-col items-center justify-center",
                         isProcessing ? "jarvis-processing" : "jarvis-breathe"
                       )}>
                         {/* Scanning effect */}
                         {isProcessing && (
                           <div className="absolute inset-0 rounded-full overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/15 to-transparent scanning" style={{ backgroundSize: "200% 100%" }} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent scanning" style={{ backgroundSize: "200% 100%" }} />
                           </div>
                         )}
 
+                        {/* Inner gradient overlay */}
+                        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-primary/5 via-transparent to-primary/8" />
+
                         {/* Content */}
-                        <div className="relative z-10 text-center px-5">
-                          <div className={cn("text-xs font-bold tracking-[0.2em] mb-2", config.color)}>
+                        <div className="relative z-10 text-center px-6">
+                          <div className={cn("text-sm font-bold tracking-[0.25em] mb-2", config.color)}>
                             {config.label}
                           </div>
-                          <div className="text-[13px] text-foreground/75 max-w-[140px] leading-relaxed">
+                          <div className="text-sm text-foreground/80 max-w-[160px] leading-relaxed">
                             {statusText}
                           </div>
-                          {/* Dots animation when processing */}
-                          {isProcessing && (
-                            <div className="flex items-center justify-center gap-1 mt-3">
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" style={{ animationDelay: "0ms" }} />
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" style={{ animationDelay: "150ms" }} />
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" style={{ animationDelay: "300ms" }} />
-                            </div>
-                          )}
+                          {/* Dots animation when idle or processing */}
+                          <div className="flex items-center justify-center gap-1.5 mt-4">
+                            <div className={cn("w-2 h-2 rounded-full bg-primary/70", isProcessing && "animate-pulse")} style={{ animationDelay: "0ms" }} />
+                            <div className={cn("w-2 h-2 rounded-full bg-primary/70", isProcessing && "animate-pulse")} style={{ animationDelay: "150ms" }} />
+                            <div className={cn("w-2 h-2 rounded-full bg-primary/70", isProcessing && "animate-pulse")} style={{ animationDelay: "300ms" }} />
+                          </div>
                         </div>
-
-                        {/* Corner accents */}
-                        <div className="absolute top-4 left-4 w-4 h-4 border-t border-l border-primary/25 rounded-tl-lg" />
-                        <div className="absolute top-4 right-4 w-4 h-4 border-t border-r border-primary/25 rounded-tr-lg" />
-                        <div className="absolute bottom-4 left-4 w-4 h-4 border-b border-l border-primary/25 rounded-bl-lg" />
-                        <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-primary/25 rounded-br-lg" />
                       </div>
                     </div>
 
-                    {/* Title */}
-                    <div className="text-center mt-10">
-                      <h1 className="text-lg font-bold tracking-[0.2em] text-foreground">
+                    {/* Title - larger */}
+                    <div className="text-center mt-6">
+                      <h1 className="text-2xl font-bold tracking-[0.3em] text-foreground text-glow">
                         JARVIS
                       </h1>
-                      <p className="text-[11px] text-muted-foreground/50 tracking-[0.15em] mt-1">
+                      <p className="text-xs text-muted-foreground/60 tracking-[0.2em] mt-2">
                         CENTRAL PLAY
                       </p>
                     </div>
 
-                    {/* Context */}
+                    {/* Context pill */}
                     {context && (
-                      <div className="mt-6 flex items-center gap-4 px-5 py-2.5 rounded-full bg-card/50 border border-border/30">
-                        <User className="w-4 h-4 text-muted-foreground/60" />
-                        <span className="text-sm text-foreground">{context.name}</span>
-                        <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                      <div className="mt-5 flex items-center gap-4 px-6 py-3 rounded-full bg-card/60 border border-border/40">
+                        <User className="w-4 h-4 text-muted-foreground/70" />
+                        <span className="text-sm font-medium text-foreground">{context.name}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
                         <span className="text-sm text-muted-foreground">{context.device}</span>
-                        <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                        <span className="text-sm text-primary">{context.flow}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                        <span className="text-sm font-medium text-primary">{context.flow}</span>
                       </div>
                     )}
                   </div>
