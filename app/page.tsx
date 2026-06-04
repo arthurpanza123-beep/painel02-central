@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { 
   Activity, AlertTriangle, Terminal, Settings, Zap, Tv, MessageSquare, 
   RefreshCw, CreditCard, Sparkles, HelpCircle, Clock, History, Monitor, BarChart3,
-  User, Layers, Play, Pause, CheckCircle2, XCircle, Loader2, ListOrdered
+  User, Layers, Play, Pause, CheckCircle2, XCircle, Loader2, ListOrdered, Cloud
 } from "lucide-react"
 
 // Types
@@ -100,6 +100,46 @@ const FLOWS: Record<string, {
       { level: "success", code: "TEST_OK", detail: "Teste finalizado com sucesso" },
     ],
   },
+  "recriar-xcloud": {
+    module: "XCloud",
+    states: [
+      { state: "receiving", text: "Solicitacao recebida", duration: 400 },
+      { state: "detecting", text: "Localizando device", duration: 600 },
+      { state: "executing", text: "Desativando device", duration: 700 },
+      { state: "executing", text: "Excluindo device", duration: 600 },
+      { state: "preparing", text: "Recriando device", duration: 800 },
+      { state: "executing", text: "Vinculando Xtream", duration: 700 },
+      { state: "validating", text: "Confirmando RELOAD", duration: 500 },
+      { state: "completed", text: "Device XCloud recriado", duration: 2000 },
+    ],
+    logs: [
+      { level: "info", code: "XCLOUD_RECREATE_REQ", detail: "Solicitacao de recriacao recebida" },
+      { level: "info", code: "XCLOUD_DEVICE_FOUND", detail: "Device key localizada" },
+      { level: "info", code: "XCLOUD_DEACTIVATED", detail: "Device desativado com sucesso" },
+      { level: "info", code: "XCLOUD_DELETED", detail: "Device excluido do sistema" },
+      { level: "info", code: "XCLOUD_RECREATED", detail: "Novo device cadastrado" },
+      { level: "success", code: "XCLOUD_RELOAD_OK", detail: "RELOAD confirmado" },
+    ],
+  },
+  "falha-xcloud": {
+    module: "XCloud",
+    states: [
+      { state: "receiving", text: "Solicitacao recebida", duration: 400 },
+      { state: "detecting", text: "Localizando device", duration: 500 },
+      { state: "executing", text: "Desativando device", duration: 600 },
+      { state: "failed", text: "Falha ao deletar device", duration: 800 },
+      { state: "retry", text: "Retry Delete", duration: 600 },
+      { state: "executing", text: "Excluindo device", duration: 700 },
+      { state: "completed", text: "Device deletado apos retry", duration: 2000 },
+    ],
+    logs: [
+      { level: "info", code: "XCLOUD_RECREATE_REQ", detail: "Solicitacao de recriacao recebida" },
+      { level: "info", code: "XCLOUD_DEACTIVATED", detail: "Device desativado" },
+      { level: "error", code: "XCLOUD_DELETE_FAIL", detail: "Falha ao deletar device" },
+      { level: "warning", code: "XCLOUD_RETRY_DEL", detail: "Tentando novamente deletar" },
+      { level: "success", code: "XCLOUD_DELETED", detail: "Device excluido apos retry" },
+    ],
+  },
 }
 
 // Simulations
@@ -108,8 +148,8 @@ const simulations = [
   { id: "audio-falhou", label: "Audio falhou", icon: <RefreshCw className="w-4 h-4" /> },
   { id: "ja-paguei", label: "Ja paguei", icon: <CreditCard className="w-4 h-4" /> },
   { id: "quero-ativar", label: "Ativar", icon: <Sparkles className="w-4 h-4" /> },
-  { id: "lista-nao-carrega", label: "Lista erro", icon: <HelpCircle className="w-4 h-4" /> },
-  { id: "teste-gerado", label: "Teste", icon: <MessageSquare className="w-4 h-4" /> },
+  { id: "recriar-xcloud", label: "Recriar XCloud", icon: <Cloud className="w-4 h-4" /> },
+  { id: "falha-xcloud", label: "Falha XCloud", icon: <AlertTriangle className="w-4 h-4" /> },
 ]
 
 // State config
@@ -167,11 +207,11 @@ export default function JarvisPage() {
     setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: "processing" } : q))
     setIsProcessing(true)
     setLastEvent({ text: item.label, time: new Date() })
-    setContext({
-      name: "Joao Silva",
-      device: item.simId === "tv-lg" ? "LG" : item.simId === "audio-falhou" ? "Samsung" : "—",
-      flow: flow.module,
-    })
+        setContext({
+          name: "Joao Silva",
+          device: item.simId === "tv-lg" ? "LG" : item.simId === "audio-falhou" ? "Samsung" : item.simId.includes("xcloud") ? "XCloud" : "—",
+          flow: flow.module,
+        })
 
     // Process states
     let logIndex = 0
