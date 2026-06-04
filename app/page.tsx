@@ -263,26 +263,43 @@ export default function JarvisPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
-      {/* Premium metallic background with multiple layers */}
+      {/* ULTRA PREMIUM background with multiple layers */}
       <div className="fixed inset-0 pointer-events-none">
         {/* Base metallic gradient */}
         <div className="absolute inset-0 bg-metallic-dark" />
+        {/* Circuit board tech texture */}
+        <div className="absolute inset-0 bg-circuit bg-circuit-animated" />
         {/* Hex grid pattern overlay */}
-        <div className="absolute inset-0 bg-hex-grid opacity-60" />
+        <div className="absolute inset-0 bg-hex-grid opacity-50" />
         {/* Brushed metal texture */}
-        <div className="absolute inset-0 brushed-metal" />
-        {/* Ambient glow from center */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_40%,_oklch(0.68_0.22_255_/_6%)_0%,_transparent_60%)]" />
+        <div className="absolute inset-0 brushed-metal opacity-60" />
+        {/* Ambient glow from center - more intense */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_45%,_oklch(0.68_0.25_255_/_10%)_0%,_transparent_55%)]" />
+        {/* Secondary glow points */}
+        <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-[radial-gradient(circle,_oklch(0.60_0.20_285_/_5%)_0%,_transparent_50%)]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-[radial-gradient(circle,_oklch(0.70_0.18_200_/_4%)_0%,_transparent_50%)]" />
         {/* Top light reflection */}
-        <div className="absolute inset-x-0 top-0 h-[400px] bg-gradient-to-b from-primary/[0.04] to-transparent" />
-        {/* Vignette effect */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_50%,_transparent_30%,_oklch(0_0_0_/_50%)_100%)]" />
+        <div className="absolute inset-x-0 top-0 h-[500px] bg-gradient-to-b from-primary/[0.06] via-primary/[0.02] to-transparent" />
+        {/* Vignette effect - deeper */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_70%_at_50%_50%,_transparent_20%,_oklch(0_0_0_/_60%)_100%)]" />
         {/* Shimmer overlay */}
-        <div className="absolute inset-0 shimmer opacity-30" />
+        <div className="absolute inset-0 shimmer opacity-40" />
+        
+        {/* FLOATING PARTICLES */}
+        <div className="floating-particle floating-particle-slow" style={{ top: '15%', left: '10%', animationDelay: '0s' }} />
+        <div className="floating-particle floating-particle-cyan" style={{ top: '25%', left: '85%', animationDelay: '2s' }} />
+        <div className="floating-particle floating-particle-purple floating-particle-fast" style={{ top: '60%', left: '15%', animationDelay: '4s' }} />
+        <div className="floating-particle" style={{ top: '70%', left: '80%', animationDelay: '1s' }} />
+        <div className="floating-particle floating-particle-slow floating-particle-cyan" style={{ top: '40%', left: '5%', animationDelay: '3s' }} />
+        <div className="floating-particle floating-particle-purple" style={{ top: '80%', left: '50%', animationDelay: '5s' }} />
+        <div className="floating-particle floating-particle-fast" style={{ top: '10%', left: '60%', animationDelay: '2.5s' }} />
+        <div className="floating-particle floating-particle-cyan floating-particle-slow" style={{ top: '50%', left: '92%', animationDelay: '1.5s' }} />
+        <div className="floating-particle floating-particle-purple" style={{ top: '90%', left: '20%', animationDelay: '4.5s' }} />
+        <div className="floating-particle" style={{ top: '35%', left: '70%', animationDelay: '0.5s' }} />
       </div>
 
       {/* Sidebar */}
-      <aside className="w-[200px] border-r border-border/20 bg-gradient-to-b from-card/40 via-card/20 to-transparent backdrop-blur-sm flex flex-col relative z-10">
+      <aside className="w-[200px] border-r border-primary/10 bg-gradient-to-b from-card/50 via-card/20 to-transparent backdrop-blur-md flex flex-col relative z-10">
         <nav className="flex-1 p-3 space-y-1 pt-6">
           {sidebarItems.map((item) => {
             const Icon = item.icon
@@ -382,8 +399,8 @@ export default function JarvisPage() {
                       <span className="text-[10px] font-semibold tracking-wider">ULTIMO EVENTO</span>
                     </div>
                     <div className={cn(
-                      "p-4 rounded-xl border backdrop-blur-sm transition-all duration-500",
-                      lastEvent ? "bg-card/60 border-primary/20 glow-blue-sm" : "bg-card/30 border-border/20"
+                      "p-4 rounded-xl backdrop-blur-md transition-all duration-500 card-glass",
+                      lastEvent ? "card-glow" : "bg-card/30 border-border/20"
                     )}>
                       {lastEvent ? (
                         <>
@@ -400,61 +417,90 @@ export default function JarvisPage() {
                   </div>
                 </div>
 
-                {/* JARVIS Core */}
+                {/* JARVIS Core - ULTRA PREMIUM */}
                 <div className="relative flex flex-col items-center">
-                  <div className="relative w-[420px] h-[420px] flex items-center justify-center">
-                    {/* Outer rings with neon */}
-                    <div className="absolute w-[400px] h-[400px] rounded-full border border-primary/8 orbit-ring-slow" />
-                    <div className={cn("absolute w-[350px] h-[350px] rounded-full border-[1.5px] orbit-ring-slow", isActive ? "border-primary/30 neon-ring" : "border-primary/15")} />
-                    <div className={cn("absolute w-[300px] h-[300px] rounded-full border-2 orbit-ring-reverse", isActive ? "border-primary/50 neon-ring-intense ring-pulse" : "border-primary/25")} />
-                    <div className={cn("absolute w-[250px] h-[250px] rounded-full border-2 orbit-ring", isActive ? "border-primary/60 neon-ring-intense" : "border-primary/30")} />
+                  <div className="relative w-[460px] h-[460px] flex items-center justify-center">
+                    {/* Ambient glow behind rings */}
+                    <div className="absolute w-[550px] h-[550px] rounded-full bg-[radial-gradient(circle,_oklch(0.68_0.25_255_/_12%)_0%,_transparent_60%)]" />
                     
-                    {/* Energy particles */}
-                    <div className="absolute w-[350px] h-[350px] orbit-ring-slow">
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-primary energy-particle" />
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-primary/60 energy-particle" style={{ animationDelay: "1s" }} />
-                    </div>
-                    <div className="absolute w-[300px] h-[300px] orbit-ring-reverse">
-                      <div className="absolute top-1/2 left-0 -translate-y-1/2 w-2 h-2 rounded-full bg-chart-5 energy-particle" style={{ animationDelay: "0.5s" }} />
-                    </div>
+                    {/* Outer decorative ring - faint */}
+                    <div className="absolute w-[440px] h-[440px] rounded-full border border-primary/5 orbit-ring-slow" />
                     
-                    {/* Inner glow */}
+                    {/* Outer rings with intense neon */}
                     <div className={cn(
-                      "absolute w-[220px] h-[220px] rounded-full transition-all duration-500",
-                      isActive 
-                        ? "bg-gradient-to-br from-primary/30 via-primary/10 to-primary/25 orbit-ring-fast" 
-                        : "bg-gradient-to-br from-primary/15 via-primary/5 to-primary/12 orbit-ring-slow"
+                      "absolute w-[400px] h-[400px] rounded-full border-[1.5px] orbit-ring-slow ring-pulse",
+                      isActive ? "border-primary/40 neon-ring" : "border-primary/20"
                     )} />
-
-                    {/* Core orb */}
+                    
                     <div className={cn(
-                      "relative w-[180px] h-[180px] rounded-full flex flex-col items-center justify-center",
-                      "bg-gradient-to-br from-[#070d18] via-[#0a1525] to-[#070d18]",
+                      "absolute w-[350px] h-[350px] rounded-full border-2 orbit-ring-reverse ring-pulse-delayed",
+                      isActive ? "border-primary/60 neon-ring-intense" : "border-primary/30 neon-ring"
+                    )} />
+                    
+                    <div className={cn(
+                      "absolute w-[300px] h-[300px] rounded-full border-[2.5px] orbit-ring ring-pulse-delayed-2",
+                      isActive ? "border-primary/80 neon-ring-intense" : "border-primary/40 neon-ring"
+                    )} />
+                    
+                    {/* Inner bright ring */}
+                    <div className={cn(
+                      "absolute w-[260px] h-[260px] rounded-full border-2 orbit-ring-reverse",
+                      isActive ? "border-primary neon-ring-intense" : "border-primary/50 neon-ring"
+                    )} />
+                    
+                    {/* Energy particles on multiple rings */}
+                    <div className="absolute w-[400px] h-[400px] orbit-ring-slow">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-primary energy-particle" style={{ boxShadow: '0 0 15px oklch(0.68 0.22 255), 0 0 30px oklch(0.68 0.22 255 / 50%)' }} />
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-chart-5 energy-particle" style={{ animationDelay: '1.5s' }} />
+                    </div>
+                    <div className="absolute w-[350px] h-[350px] orbit-ring-reverse">
+                      <div className="absolute top-1/2 left-0 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-400 energy-particle" style={{ animationDelay: '0.5s', boxShadow: '0 0 12px oklch(0.75 0.15 200)' }} />
+                      <div className="absolute top-1/2 right-0 -translate-y-1/2 w-2 h-2 rounded-full bg-primary/80 energy-particle" style={{ animationDelay: '2s' }} />
+                    </div>
+                    <div className="absolute w-[300px] h-[300px] orbit-ring">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-purple-400 energy-particle" style={{ animationDelay: '0.8s', boxShadow: '0 0 10px oklch(0.60 0.20 285)' }} />
+                    </div>
+                    
+                    {/* Inner gradient glow ring */}
+                    <div className={cn(
+                      "absolute w-[230px] h-[230px] rounded-full transition-all duration-500",
+                      isActive 
+                        ? "bg-gradient-to-br from-primary/35 via-primary/15 to-primary/30 orbit-ring-fast" 
+                        : "bg-gradient-to-br from-primary/20 via-primary/8 to-primary/18 orbit-ring-slow"
+                    )} style={{ boxShadow: isActive ? 'inset 0 0 60px oklch(0.68 0.22 255 / 30%)' : 'inset 0 0 40px oklch(0.68 0.22 255 / 15%)' }} />
+
+                    {/* Core orb - PREMIUM */}
+                    <div className={cn(
+                      "relative w-[190px] h-[190px] rounded-full flex flex-col items-center justify-center",
+                      "bg-gradient-to-br from-[#050a14] via-[#081220] to-[#050a14]",
                       "border-2 transition-all duration-300",
-                      isActive ? "border-primary/60" : "border-primary/40",
+                      isActive ? "border-primary/80" : "border-primary/50",
                       isActive ? "jarvis-processing" : "jarvis-breathe"
                     )}>
+                      {/* Inner highlight */}
                       <div className="absolute inset-0 rounded-full core-inner-glow" />
+                      {/* Specular highlight */}
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/5 via-transparent to-transparent" />
                       
                       {isActive && (
                         <div className="absolute inset-0 rounded-full overflow-hidden">
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/25 to-transparent scanning" style={{ backgroundSize: "200% 100%" }} />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/30 to-transparent scanning" style={{ backgroundSize: "200% 100%" }} />
                         </div>
                       )}
 
-                      <div className="relative z-10 text-center px-4">
-                        <div className={cn("text-xs font-bold tracking-[0.2em] mb-1.5 text-glow", config.color)}>
+                      <div className="relative z-10 text-center px-5">
+                        <div className={cn("text-sm font-bold tracking-[0.25em] mb-2 text-glow", config.color)}>
                           {config.label}
                         </div>
-                        <div className="text-[13px] text-foreground/80 max-w-[140px] leading-snug">
+                        <div className="text-[13px] text-foreground/85 max-w-[150px] leading-snug">
                           {statusText}
                         </div>
-                        <div className="flex items-center justify-center gap-1.5 mt-3">
+                        <div className="flex items-center justify-center gap-2 mt-4">
                           {[0, 1, 2].map((i) => (
                             <div key={i} className={cn(
-                              "w-1.5 h-1.5 rounded-full bg-primary transition-all",
+                              "w-2 h-2 rounded-full bg-primary transition-all",
                               isActive && "energy-particle"
-                            )} style={{ animationDelay: `${i * 200}ms` }} />
+                            )} style={{ animationDelay: `${i * 200}ms`, boxShadow: '0 0 8px oklch(0.68 0.22 255)' }} />
                           ))}
                         </div>
                       </div>
@@ -462,25 +508,25 @@ export default function JarvisPage() {
                   </div>
 
                   {/* Title */}
-                  <div className="text-center mt-4">
-                    <h1 className="text-xl font-bold tracking-[0.3em] text-foreground text-glow">JARVIS</h1>
-                    <p className="text-[10px] text-muted-foreground/40 tracking-[0.2em] mt-1">CENTRAL PLAY</p>
+                  <div className="text-center mt-5">
+                    <h1 className="text-2xl font-bold tracking-[0.35em] text-foreground text-glow">JARVIS</h1>
+                    <p className="text-[11px] text-muted-foreground/50 tracking-[0.2em] mt-1.5">CENTRAL PLAY</p>
                   </div>
 
-                  {/* Context */}
+                  {/* Context pill - glass effect */}
                   {context && (
-                    <div className="mt-4 flex items-center gap-3 px-5 py-2.5 rounded-full bg-card/50 border border-primary/15 backdrop-blur-sm">
-                      <User className="w-3.5 h-3.5 text-primary/60" />
-                      <span className="text-sm text-foreground">{context.name}</span>
-                      <span className="w-1 h-1 rounded-full bg-primary/30" />
-                      <span className="text-sm text-muted-foreground/70">{context.device}</span>
-                      <span className="w-1 h-1 rounded-full bg-primary/30" />
-                      <span className="text-sm text-primary">{context.flow}</span>
+                    <div className="mt-5 flex items-center gap-3 px-6 py-3 rounded-full card-glass">
+                      <User className="w-4 h-4 text-primary/70" />
+                      <span className="text-sm font-medium text-foreground">{context.name}</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                      <span className="text-sm text-muted-foreground/80">{context.device}</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                      <span className="text-sm font-medium text-primary">{context.flow}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Side cards - Action & Queue */}
+                {/* Side cards - Action & Queue - GLASS EFFECT */}
                 <div className="absolute right-8 top-1/2 -translate-y-1/2 w-[200px] space-y-4">
                   {/* Current Action */}
                   <div className="space-y-2">
@@ -489,8 +535,8 @@ export default function JarvisPage() {
                       <span className="text-[10px] font-semibold tracking-wider">ACAO ATUAL</span>
                     </div>
                     <div className={cn(
-                      "p-4 rounded-xl border backdrop-blur-sm transition-all duration-500",
-                      currentAction ? "bg-card/60 border-chart-2/20" : "bg-card/30 border-border/20"
+                      "p-4 rounded-xl backdrop-blur-md transition-all duration-500",
+                      currentAction ? "card-glass card-glow" : "bg-card/30 border border-border/20"
                     )}>
                       {currentAction ? (
                         <>
@@ -500,6 +546,7 @@ export default function JarvisPage() {
                             Em andamento
                           </div>
                         </>
+
                       ) : (
                         <p className="text-sm text-muted-foreground/30">Nenhuma acao</p>
                       )}
