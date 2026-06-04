@@ -22,17 +22,19 @@ const statusConfig: Record<ActionEntry["status"], { icon: React.ReactNode; color
 
 export function ActionsPanel({ actions }: ActionsPanelProps) {
   return (
-    <div className="flex flex-col h-full">
-      {/* Header - more padding */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-border/30">
-        <ArrowRight className="w-4 h-4 text-chart-2" />
-        <span className="text-xs font-medium tracking-wider text-chart-2/80">AÇÕES</span>
+    <div className="flex flex-col h-full bg-gradient-to-b from-card/50 to-background">
+      {/* Header - premium style */}
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-border bg-card/30">
+        <div className="p-2 rounded-lg bg-chart-2/15">
+          <ArrowRight className="w-4 h-4 text-chart-2" />
+        </div>
+        <span className="text-sm font-semibold tracking-wide text-foreground">Ações</span>
       </div>
 
-      {/* Actions list - more spacing */}
+      {/* Actions list - premium cards */}
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {actions.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground/60 text-sm">
+          <div className="text-center py-12 text-muted-foreground text-sm">
             Nenhuma ação...
           </div>
         ) : (
@@ -42,7 +44,7 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
               <div
                 key={action.id}
                 className={cn(
-                  "p-4 rounded-xl bg-secondary/40 border-l-2 flow-in-right",
+                  "p-4 rounded-xl bg-gradient-to-br from-card to-secondary/30 border border-border/80 border-l-3 flow-in-right",
                   action.status === "completed" ? "border-l-chart-2" : 
                   action.status === "executing" ? "border-l-primary" : "border-l-muted-foreground"
                 )}
@@ -50,7 +52,7 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className={config.color}>{config.icon}</span>
-                  <span className={cn("text-[10px] font-mono", config.color)}>
+                  <span className={cn("text-[10px] font-semibold", config.color)}>
                     {action.status === "completed" ? "OK" : "..."}
                   </span>
                 </div>
@@ -63,10 +65,10 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
         )}
       </div>
 
-      {/* Subtle data stream indicator */}
-      <div className="h-0.5 bg-secondary/50 overflow-hidden">
+      {/* Data stream indicator */}
+      <div className="h-1 bg-gradient-to-r from-transparent via-border to-transparent overflow-hidden">
         <div 
-          className="h-full w-1/4 bg-gradient-to-r from-transparent via-chart-2/40 to-transparent data-stream-right"
+          className="h-full w-1/3 bg-gradient-to-r from-transparent via-chart-2/50 to-transparent data-stream-right"
         />
       </div>
     </div>

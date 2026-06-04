@@ -28,12 +28,12 @@ interface ModulesRingProps {
 }
 
 const statusColors: Record<ModuleStatus, { bg: string; border: string; text: string; glow: string }> = {
-  ready: { bg: "bg-secondary", border: "border-primary/20", text: "text-muted-foreground", glow: "" },
-  processing: { bg: "bg-primary/20", border: "border-primary", text: "text-primary", glow: "glow-blue-sm status-active" },
-  waiting: { bg: "bg-chart-3/10", border: "border-chart-3/50", text: "text-chart-3", glow: "" },
-  failed: { bg: "bg-destructive/10", border: "border-destructive/50", text: "text-destructive", glow: "glow-red" },
-  retry: { bg: "bg-chart-3/10", border: "border-chart-3", text: "text-chart-3", glow: "glow-yellow" },
-  completed: { bg: "bg-chart-2/10", border: "border-chart-2/50", text: "text-chart-2", glow: "glow-green" },
+  ready: { bg: "bg-card", border: "border-border", text: "text-muted-foreground", glow: "" },
+  processing: { bg: "bg-primary/15", border: "border-primary", text: "text-primary", glow: "glow-blue-sm status-active" },
+  waiting: { bg: "bg-chart-3/15", border: "border-chart-3/60", text: "text-chart-3", glow: "" },
+  failed: { bg: "bg-destructive/15", border: "border-destructive/60", text: "text-destructive", glow: "glow-red" },
+  retry: { bg: "bg-chart-3/15", border: "border-chart-3", text: "text-chart-3", glow: "glow-yellow" },
+  completed: { bg: "bg-chart-2/15", border: "border-chart-2/60", text: "text-chart-2", glow: "glow-green" },
 }
 
 const statusLabels: Record<ModuleStatus, string> = {
@@ -71,17 +71,18 @@ export function ModulesRing({ modules, activeModuleId }: ModulesRingProps) {
           >
             <div
               className={cn(
-                "relative flex flex-col items-center gap-2 p-4 rounded-2xl",
-                "border backdrop-blur-sm transition-all duration-300",
-                colors.bg, colors.border,
+                "relative flex flex-col items-center gap-2.5 p-4 rounded-2xl",
+                "border-2 backdrop-blur-sm transition-all duration-300",
+                "bg-gradient-to-br from-card to-secondary/50",
+                colors.border,
                 isActive && "scale-110",
                 colors.glow
               )}
             >
-              <div className={cn("p-2.5 rounded-xl", colors.bg, colors.text)}>
+              <div className={cn("p-3 rounded-xl bg-secondary/80 border border-border/50", colors.text)}>
                 {module.icon}
               </div>
-              <span className={cn("text-xs font-medium", colors.text)}>
+              <span className={cn("text-xs font-semibold", colors.text)}>
                 {module.name}
               </span>
               {module.count !== undefined && module.count > 0 && (

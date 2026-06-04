@@ -28,22 +28,24 @@ const levelConfig: Record<LogEntry["level"], { prefix: string; color: string }> 
 
 export function TerminalConsole({ logs, commandInput = "", onCommandChange, onCommandSubmit }: TerminalConsoleProps) {
   return (
-    <div className="flex flex-col h-full bg-background/90 backdrop-blur-sm border border-border/30 rounded-2xl overflow-hidden">
-      {/* Header - cleaner */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border/30 bg-secondary/20">
-        <Terminal className="w-4 h-4 text-primary/70" />
-        <span className="text-xs font-mono tracking-wider text-primary/60">CONSOLE</span>
+    <div className="flex flex-col h-full bg-gradient-to-br from-card to-secondary/30 border border-border rounded-2xl overflow-hidden">
+      {/* Header - premium */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-secondary/30">
+        <div className="p-2 rounded-lg bg-primary/15">
+          <Terminal className="w-4 h-4 text-primary" />
+        </div>
+        <span className="text-sm font-semibold text-foreground">Console</span>
         <div className="ml-auto flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-chart-2/80 pulse-dot" />
+          <div className="w-2 h-2 rounded-full bg-chart-2 pulse-dot glow-green" />
         </div>
       </div>
 
-      {/* Logs - more space */}
+      {/* Logs - premium style */}
       <ScrollArea className="flex-1">
         <div className="p-5 font-mono text-xs space-y-2">
           {logs.length === 0 ? (
-            <div className="text-muted-foreground/50">
-              <span className="text-primary/50">$</span> aguardando...
+            <div className="text-muted-foreground">
+              <span className="text-primary">$</span> aguardando...
             </div>
           ) : (
             <>
@@ -55,10 +57,10 @@ export function TerminalConsole({ logs, commandInput = "", onCommandChange, onCo
                     className="flex items-start gap-3 terminal-line"
                     style={{ animationDelay: `${Math.min(index, 10) * 0.03}s` }}
                   >
-                    <span className={cn("shrink-0 w-10", config.color)}>
+                    <span className={cn("shrink-0 w-12 font-semibold", config.color)}>
                       {config.prefix}
                     </span>
-                    <span className="text-foreground/80">{log.code}</span>
+                    <span className="text-foreground">{log.code}</span>
                   </div>
                 )
               })}
