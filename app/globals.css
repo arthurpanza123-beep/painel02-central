@@ -102,64 +102,133 @@
 }
 
 @layer utilities {
-  /* Glow effects */
+  /* ===== JARVIS GLOW EFFECTS ===== */
+  .jarvis-glow {
+    box-shadow: 
+      0 0 60px oklch(0.58 0.22 255 / 35%),
+      0 0 120px oklch(0.58 0.22 255 / 20%),
+      0 0 180px oklch(0.58 0.22 255 / 10%),
+      inset 0 0 60px oklch(0.58 0.22 255 / 15%);
+  }
+  .jarvis-glow-intense {
+    box-shadow: 
+      0 0 80px oklch(0.58 0.22 255 / 50%),
+      0 0 160px oklch(0.58 0.22 255 / 30%),
+      0 0 240px oklch(0.58 0.22 255 / 15%),
+      inset 0 0 80px oklch(0.58 0.22 255 / 25%);
+  }
   .glow-blue {
     box-shadow: 0 0 30px oklch(0.58 0.22 255 / 30%), 0 0 60px oklch(0.58 0.22 255 / 15%);
   }
   .glow-blue-sm {
     box-shadow: 0 0 15px oklch(0.58 0.22 255 / 25%);
   }
-  .glow-blue-intense {
-    box-shadow: 0 0 40px oklch(0.58 0.22 255 / 40%), 0 0 80px oklch(0.58 0.22 255 / 20%), 0 0 120px oklch(0.58 0.22 255 / 10%);
-  }
   .glow-green {
-    box-shadow: 0 0 20px oklch(0.62 0.18 152 / 35%);
+    box-shadow: 0 0 25px oklch(0.62 0.18 152 / 40%);
   }
   .glow-red {
-    box-shadow: 0 0 20px oklch(0.63 0.22 25 / 35%);
+    box-shadow: 0 0 25px oklch(0.63 0.22 25 / 40%);
   }
   .glow-yellow {
-    box-shadow: 0 0 20px oklch(0.72 0.18 55 / 35%);
+    box-shadow: 0 0 25px oklch(0.72 0.18 55 / 40%);
   }
   .border-glow {
     border-color: oklch(0.58 0.22 255 / 50%);
   }
-
-  /* Orb pulsation */
-  .orb-pulse {
-    animation: orb-pulse 3s ease-in-out infinite;
+  .text-glow {
+    text-shadow: 0 0 20px oklch(0.58 0.22 255 / 60%), 0 0 40px oklch(0.58 0.22 255 / 30%);
   }
-  @keyframes orb-pulse {
+
+  /* ===== JARVIS CORE ANIMATIONS ===== */
+  .jarvis-breathe {
+    animation: jarvis-breathe 4s ease-in-out infinite;
+  }
+  @keyframes jarvis-breathe {
     0%, 100% { 
-      transform: scale(1); 
-      box-shadow: 0 0 40px oklch(0.58 0.22 255 / 40%), 0 0 80px oklch(0.58 0.22 255 / 20%);
+      transform: scale(1);
+      box-shadow: 
+        0 0 60px oklch(0.58 0.22 255 / 35%),
+        0 0 120px oklch(0.58 0.22 255 / 20%),
+        0 0 180px oklch(0.58 0.22 255 / 10%),
+        inset 0 0 60px oklch(0.58 0.22 255 / 15%);
     }
     50% { 
-      transform: scale(1.03); 
-      box-shadow: 0 0 60px oklch(0.58 0.22 255 / 50%), 0 0 100px oklch(0.58 0.22 255 / 25%);
+      transform: scale(1.02);
+      box-shadow: 
+        0 0 80px oklch(0.58 0.22 255 / 45%),
+        0 0 160px oklch(0.58 0.22 255 / 25%),
+        0 0 240px oklch(0.58 0.22 255 / 12%),
+        inset 0 0 80px oklch(0.58 0.22 255 / 20%);
+    }
+  }
+  .jarvis-processing {
+    animation: jarvis-processing 2s ease-in-out infinite;
+  }
+  @keyframes jarvis-processing {
+    0%, 100% { 
+      transform: scale(1);
+      box-shadow: 
+        0 0 80px oklch(0.58 0.22 255 / 50%),
+        0 0 160px oklch(0.58 0.22 255 / 30%),
+        0 0 240px oklch(0.58 0.22 255 / 15%),
+        inset 0 0 80px oklch(0.58 0.22 255 / 25%);
+    }
+    50% { 
+      transform: scale(1.05);
+      box-shadow: 
+        0 0 100px oklch(0.58 0.22 255 / 60%),
+        0 0 200px oklch(0.58 0.22 255 / 35%),
+        0 0 300px oklch(0.58 0.22 255 / 18%),
+        inset 0 0 100px oklch(0.58 0.22 255 / 30%);
     }
   }
 
-  /* Orbital ring rotation */
+  /* ===== ORBITAL RINGS ===== */
   .orbit-ring {
-    animation: orbit-ring 20s linear infinite;
+    animation: orbit-ring 25s linear infinite;
   }
   @keyframes orbit-ring {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
   .orbit-ring-reverse {
-    animation: orbit-ring-reverse 25s linear infinite;
+    animation: orbit-ring-reverse 30s linear infinite;
   }
   @keyframes orbit-ring-reverse {
     from { transform: rotate(360deg); }
     to { transform: rotate(0deg); }
   }
+  .orbit-ring-fast {
+    animation: orbit-ring 15s linear infinite;
+  }
   .orbit-ring-slow {
-    animation: orbit-ring 35s linear infinite;
+    animation: orbit-ring 40s linear infinite;
   }
 
-  /* Status pulse */
+  /* ===== PARTICLE EFFECTS ===== */
+  .particle-orbit {
+    animation: particle-orbit 8s linear infinite;
+  }
+  @keyframes particle-orbit {
+    0% { transform: rotate(0deg) translateX(var(--orbit-radius, 120px)) rotate(0deg); }
+    100% { transform: rotate(360deg) translateX(var(--orbit-radius, 120px)) rotate(-360deg); }
+  }
+  .particle-float {
+    animation: particle-float 4s ease-in-out infinite;
+  }
+  @keyframes particle-float {
+    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.4; }
+    50% { transform: translateY(-12px) translateX(6px); opacity: 0.8; }
+  }
+  .particle-pulse {
+    animation: particle-pulse 2s ease-in-out infinite;
+  }
+  @keyframes particle-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.2); }
+  }
+
+  /* ===== STATUS INDICATORS ===== */
   .pulse-dot {
     animation: pulse-dot 2s ease-in-out infinite;
   }
@@ -167,95 +236,115 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(0.85); }
   }
-  .pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
+  .status-active {
+    animation: status-active 1.5s ease-in-out infinite;
   }
-  @keyframes pulse-glow {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+  @keyframes status-active {
+    0%, 100% { box-shadow: 0 0 10px currentColor; }
+    50% { box-shadow: 0 0 25px currentColor, 0 0 40px currentColor; }
   }
-
-  /* Particle float */
-  .particle-float {
-    animation: particle-float 4s ease-in-out infinite;
+  .module-glow {
+    animation: module-glow 2s ease-in-out infinite;
   }
-  @keyframes particle-float {
-    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.6; }
-    50% { transform: translateY(-8px) translateX(4px); opacity: 1; }
+  @keyframes module-glow {
+    0%, 100% { box-shadow: 0 0 15px oklch(0.58 0.22 255 / 20%); }
+    50% { box-shadow: 0 0 30px oklch(0.58 0.22 255 / 40%); }
   }
 
-  /* Flow animations */
-  .flow-in {
-    animation: flow-in 0.5s ease-out forwards;
+  /* ===== FLOW ANIMATIONS ===== */
+  .flow-in-left {
+    animation: flow-in-left 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-  @keyframes flow-in {
-    from { opacity: 0; transform: translateX(-20px) scale(0.95); }
+  @keyframes flow-in-left {
+    from { opacity: 0; transform: translateX(-30px) scale(0.9); }
     to { opacity: 1; transform: translateX(0) scale(1); }
   }
-  .flow-out {
-    animation: flow-out 0.5s ease-out forwards;
+  .flow-in-right {
+    animation: flow-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-  @keyframes flow-out {
-    from { opacity: 0; transform: translateX(20px) scale(0.95); }
+  @keyframes flow-in-right {
+    from { opacity: 0; transform: translateX(30px) scale(0.9); }
     to { opacity: 1; transform: translateX(0) scale(1); }
   }
   .flow-up {
-    animation: flow-up 0.4s ease-out forwards;
+    animation: flow-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
   @keyframes flow-up {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(15px); }
     to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* Slide animations */
-  .slide-in {
-    animation: slide-in 0.35s ease-out;
-  }
-  @keyframes slide-in {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: translateX(0); }
   }
   .fade-in {
     animation: fade-in 0.4s ease-out;
   }
   @keyframes fade-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .scale-in {
+    animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
   }
 
-  /* Processing state */
-  .processing {
-    animation: processing 1.5s ease-in-out infinite;
+  /* ===== DATA STREAMS ===== */
+  .data-stream-left {
+    animation: data-stream-left 1.5s linear infinite;
   }
-  @keyframes processing {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+  @keyframes data-stream-left {
+    0% { transform: translateX(100%); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateX(-100%); opacity: 0; }
   }
-
-  /* Data stream */
-  .data-stream {
-    animation: data-stream 2s linear infinite;
+  .data-stream-right {
+    animation: data-stream-right 1.5s linear infinite;
   }
-  @keyframes data-stream {
-    0% { background-position: 0% center; }
-    100% { background-position: 200% center; }
+  @keyframes data-stream-right {
+    0% { transform: translateX(-100%); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
   }
-
-  /* Scanning */
   .scanning {
-    animation: scanning 1.6s linear infinite;
+    animation: scanning 2s linear infinite;
   }
   @keyframes scanning {
     0% { background-position: -200% center; }
     100% { background-position: 200% center; }
   }
 
-  /* Connection line pulse */
-  .connection-pulse {
-    animation: connection-pulse 1.5s ease-in-out infinite;
+  /* ===== TERMINAL EFFECTS ===== */
+  .terminal-cursor {
+    animation: terminal-cursor 1s step-end infinite;
   }
-  @keyframes connection-pulse {
-    0%, 100% { stroke-dashoffset: 0; opacity: 0.3; }
-    50% { stroke-dashoffset: 20; opacity: 1; }
+  @keyframes terminal-cursor {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+  .terminal-line {
+    animation: terminal-line 0.3s ease-out forwards;
+  }
+  @keyframes terminal-line {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== CONNECTION LINES ===== */
+  .connection-flow {
+    stroke-dasharray: 8 4;
+    animation: connection-flow 1s linear infinite;
+  }
+  @keyframes connection-flow {
+    from { stroke-dashoffset: 24; }
+    to { stroke-dashoffset: 0; }
+  }
+  .energy-line {
+    animation: energy-line 2s ease-in-out infinite;
+  }
+  @keyframes energy-line {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
   }
 }

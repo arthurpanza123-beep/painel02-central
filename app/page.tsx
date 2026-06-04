@@ -1,366 +1,446 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { HeaderOrquestrador } from "@/components/orquestrador/header-orquestrador"
-import { OrquestradorOrb, OrquestradorStatus } from "@/components/orquestrador/orquestrador-orb"
-import { EntradasPanel, type EventoEntrada } from "@/components/orquestrador/entradas-panel"
-import { SaidasPanel, type AcaoSaida } from "@/components/orquestrador/saidas-panel"
-import { WorkersRing, type Worker, type WorkerStatus } from "@/components/orquestrador/workers-ring"
-import { FilaExecucoes, type Execucao } from "@/components/orquestrador/fila-execucoes"
-import { ContextoPanel, type ClienteContexto } from "@/components/orquestrador/contexto-panel"
-import { SimuladorEventos } from "@/components/orquestrador/simulador-eventos"
-import { LogsTerminal, type LogEntry } from "@/components/orquestrador/logs-terminal"
-import { FalhasRetry, type Falha } from "@/components/orquestrador/falhas-retry"
+import { useState, useCallback, useRef, useEffect } from "react"
+import { JarvisCore, type JarvisState } from "@/components/jarvis/jarvis-core"
+import { ModulesRing, getDefaultModules, type ModuleStatus } from "@/components/jarvis/modules-ring"
+import { EventsPanel, type EventEntry } from "@/components/jarvis/events-panel"
+import { ActionsPanel, type ActionEntry } from "@/components/jarvis/actions-panel"
+import { TerminalConsole, type LogEntry } from "@/components/jarvis/terminal-console"
+import { FailuresPanel, type FailureEntry } from "@/components/jarvis/failures-panel"
+import { SimulatorPanel, type Simulation } from "@/components/jarvis/simulator-panel"
+import { ContextCard, type ClientContext } from "@/components/jarvis/context-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Activity, ListTodo, AlertTriangle, Terminal } from "lucide-react"
+import { Activity, AlertTriangle, Terminal, Settings } from "lucide-react"
 
-// Initial workers
-const WORKERS_INITIAL: Worker[] = [
-  { id: "boas-vindas", nome: "Boas-vindas", status: "idle", icon: "boas-vindas" },
-  { id: "instalacao", nome: "Instalação", status: "idle", icon: "instalacao" },
-  { id: "teste", nome: "Teste", status: "idle", icon: "teste" },
-  { id: "cobranca", nome: "Cobrança", status: "idle", icon: "cobranca" },
-  { id: "suporte", nome: "Suporte", status: "idle", icon: "suporte" },
-  { id: "reenvio", nome: "Reenvio", status: "idle", icon: "reenvio" },
-]
-
-// Initial client context
-const CLIENTE_INICIAL: ClienteContexto = {
-  nome: "João Silva",
-  telefone: "(22) 99999-1234",
-  app: "XCloud",
-  aparelho: "LG",
-  testeVinculado: "Teste #0001",
-  statusAtual: "Aguardando instalação",
-  ultimaEntrada: "TV LG",
-  ultimaSaida: "Instruções LG enviadas",
+// Flow configurations
+const FLOWS: Record<string, { 
+  module: string
+  states: { state: JarvisState; text: string; duration: number }[]
+  actions: string[]
+  logs: { level: LogEntry["level"]; code: string; message?: string }[]
+}> = {
+  "tv-lg": {
+    module: "instalacao",
+    states: [
+      { state: "receiving", text: "Recebendo resposta do cliente", duration: 500 },
+      { state: "interpreting", text: "Interpretando intenção", duration: 600 },
+      { state: "detecting", text: "Detectando aparelho: LG", duration: 500 },
+      { state: "preparing", text: "Preparando fluxo de instalação", duration: 400 },
+      { state: "executing", text: "Executando automação", duration: 800 },
+      { state: "validating", text: "Validando envio", duration: 400 },
+      { state: "completed", text: "Instalação LG pronta para envio", duration: 2000 },
+    ],
+    actions: [
+      "Detectando aparelho LG",
+      "Preparando instrução LG",
+      "Enviando instalação LG",
+    ],
+    logs: [
+      { level: "info", code: "EVENT_RECEIVED_DEVICE_LG", message: "Cliente respondeu: TV LG" },
+      { level: "info", code: "INTENT_CLASSIFIED_INSTALLATION" },
+      { level: "info", code: "FLOW_SELECTED_LG_INSTALLATION" },
+      { level: "success", code: "ACTION_PREPARED_SEND_INSTALLATION" },
+      { level: "success", code: "DISPATCH_READY" },
+    ],
+  },
+  "teste-gerado": {
+    module: "teste",
+    states: [
+      { state: "receiving", text: "Recebendo teste gerado", duration: 400 },
+      { state: "interpreting", text: "Classificando evento", duration: 500 },
+      { state: "preparing", text: "Preparando mensagem de teste", duration: 500 },
+      { state: "executing", text: "Disparando fluxo de teste", duration: 600 },
+      { state: "completed", text: "Teste enviado com sucesso", duration: 2000 },
+    ],
+    actions: [
+      "Recebendo teste #0001",
+      "Preparando mensagem",
+      "Disparando fluxo de teste",
+    ],
+    logs: [
+      { level: "info", code: "EVENT_RECEIVED_TEST_GENERATED", message: "Teste #0001" },
+      { level: "info", code: "TEST_FLOW_STARTED" },
+      { level: "success", code: "TEST_MESSAGE_DISPATCHED" },
+    ],
+  },
+  "audio-falhou": {
+    module: "reenvio",
+    states: [
+      { state: "receiving", text: "Recebendo falha de áudio", duration: 400 },
+      { state: "interpreting", text: "Analisando falha", duration: 600 },
+      { state: "failed", text: "Falha detectada: Áudio 4", duration: 800 },
+      { state: "retry", text: "Preparando reenvio", duration: 500 },
+      { state: "executing", text: "Reenviando áudio 4", duration: 700 },
+      { state: "completed", text: "Áudio 4 reenviado", duration: 2000 },
+    ],
+    actions: [
+      "Identificando falha",
+      "Preparando retry áudio 4",
+      "Reenviando áudio 4",
+    ],
+    logs: [
+      { level: "error", code: "WELCOME_AUDIO_4_FAILED", message: "Timeout na conexão" },
+      { level: "warning", code: "RETRY_INITIATED" },
+      { level: "success", code: "WELCOME_AUDIO_4_RETRIED" },
+    ],
+  },
+  "ja-paguei": {
+    module: "cobranca",
+    states: [
+      { state: "receiving", text: "Recebendo mensagem do cliente", duration: 400 },
+      { state: "interpreting", text: "Interpretando: pagamento", duration: 600 },
+      { state: "preparing", text: "Verificando status", duration: 500 },
+      { state: "executing", text: "Atualizando cobrança", duration: 600 },
+      { state: "completed", text: "Pagamento confirmado", duration: 2000 },
+    ],
+    actions: [
+      "Verificando pagamento",
+      "Atualizando status",
+      "Confirmando recebimento",
+    ],
+    logs: [
+      { level: "info", code: "EVENT_RECEIVED_PAYMENT_CLAIM", message: "Cliente disse: Já paguei" },
+      { level: "info", code: "PAYMENT_STATUS_CHECKING" },
+      { level: "success", code: "PAYMENT_CONFIRMED" },
+    ],
+  },
+  "quero-ativar": {
+    module: "boas-vindas",
+    states: [
+      { state: "receiving", text: "Recebendo solicitação", duration: 400 },
+      { state: "interpreting", text: "Classificando: ativação", duration: 500 },
+      { state: "preparing", text: "Preparando boas-vindas", duration: 500 },
+      { state: "executing", text: "Enviando sequência", duration: 1000 },
+      { state: "completed", text: "Boas-vindas iniciadas", duration: 2000 },
+    ],
+    actions: [
+      "Iniciando boas-vindas",
+      "Enviando áudio 1",
+      "Enviando áudio 2",
+      "Enviando prova social",
+    ],
+    logs: [
+      { level: "info", code: "EVENT_RECEIVED_ACTIVATION", message: "Quero ativar" },
+      { level: "info", code: "WELCOME_FLOW_STARTED" },
+      { level: "success", code: "WELCOME_AUDIO_1_SENT" },
+      { level: "success", code: "WELCOME_AUDIO_2_SENT" },
+    ],
+  },
+  "lista-nao-carrega": {
+    module: "suporte",
+    states: [
+      { state: "receiving", text: "Recebendo problema", duration: 400 },
+      { state: "interpreting", text: "Classificando problema", duration: 600 },
+      { state: "preparing", text: "Buscando solução", duration: 700 },
+      { state: "executing", text: "Enviando resposta", duration: 500 },
+      { state: "completed", text: "Suporte enviado", duration: 2000 },
+    ],
+    actions: [
+      "Classificando problema",
+      "Buscando solução",
+      "Enviando resposta",
+    ],
+    logs: [
+      { level: "warning", code: "EVENT_RECEIVED_ISSUE", message: "Lista não carrega" },
+      { level: "info", code: "ISSUE_CLASSIFIED_LIST_ERROR" },
+      { level: "success", code: "SUPPORT_RESPONSE_SENT" },
+    ],
+  },
 }
 
-// Flow mapping for events
-const FLOW_MAP: Record<string, { worker: string; acoes: string[]; logs: string[] }> = {
-  dispositivo: {
-    worker: "instalacao",
-    acoes: ["Detectando aparelho", "Preparando instrução", "Enviando instalação"],
-    logs: ["EVENT_RECEIVED_DEVICE", "FLOW_SELECTED_INSTALLATION", "INSTALLATION_MESSAGE_PREPARED", "INSTALLATION_DISPATCHED"],
-  },
-  pagamento: {
-    worker: "cobranca",
-    acoes: ["Verificando pagamento", "Atualizando status", "Confirmando recebimento"],
-    logs: ["EVENT_RECEIVED_PAYMENT", "FLOW_SELECTED_BILLING", "PAYMENT_VERIFIED", "BILLING_STATUS_UPDATED"],
-  },
-  audio_falhou: {
-    worker: "reenvio",
-    acoes: ["Identificando falha", "Preparando retry", "Reenviando áudio"],
-    logs: ["EVENT_RECEIVED_FAILURE", "WELCOME_AUDIO_4_FAILED", "WELCOME_AUDIO_4_RETRY", "AUDIO_RETRY_DISPATCHED"],
-  },
-  teste: {
-    worker: "teste",
-    acoes: ["Recebendo teste", "Preparando mensagem", "Disparando fluxo"],
-    logs: ["EVENT_RECEIVED_TEST", "TEST_FLOW_STARTED", "TEST_MESSAGE_PREPARED", "TEST_MESSAGE_DISPATCHED"],
-  },
-  ativacao: {
-    worker: "boas-vindas",
-    acoes: ["Iniciando boas-vindas", "Enviando áudio 1", "Enviando áudio 2", "Enviando prova social"],
-    logs: ["EVENT_RECEIVED_ACTIVATION", "WELCOME_FLOW_STARTED", "WELCOME_AUDIO_1_SENT", "WELCOME_AUDIO_2_SENT"],
-  },
-  problema: {
-    worker: "suporte",
-    acoes: ["Classificando problema", "Buscando solução", "Enviando resposta"],
-    logs: ["EVENT_RECEIVED_ISSUE", "ISSUE_CLASSIFIED", "SUPPORT_RESPONSE_PREPARED", "SUPPORT_DISPATCHED"],
-  },
-}
-
-export default function OrquestradorPage() {
+export default function JarvisPage() {
   const [tab, setTab] = useState("central")
-  const [orbState, setOrbState] = useState<{ status: "idle" | "receiving" | "interpreting" | "classifying" | "routing" | "executing" | "validating" | "success" | "failed" | "retrying"; message?: string }>({ status: "idle" })
-  const [workers, setWorkers] = useState<Worker[]>(WORKERS_INITIAL)
-  const [eventos, setEventos] = useState<EventoEntrada[]>([])
-  const [acoes, setAcoes] = useState<AcaoSaida[]>([])
-  const [execucoes, setExecucoes] = useState<Execucao[]>([])
+  const [jarvisState, setJarvisState] = useState<JarvisState>("idle")
+  const [statusText, setStatusText] = useState("Aguardando evento")
+  const [activeModule, setActiveModule] = useState<string | undefined>()
+  const [modules, setModules] = useState(getDefaultModules())
+  const [events, setEvents] = useState<EventEntry[]>([])
+  const [actions, setActions] = useState<ActionEntry[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
-  const [falhas, setFalhas] = useState<Falha[]>([])
-  const [cliente, setCliente] = useState<ClienteContexto>(CLIENTE_INICIAL)
+  const [failures, setFailures] = useState<FailureEntry[]>([])
+  const [clientContext, setClientContext] = useState<ClientContext | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
+  const [commandInput, setCommandInput] = useState("")
 
-  // Add log entry
+  // Update module status
+  const updateModuleStatus = useCallback((moduleId: string, status: ModuleStatus) => {
+    setModules(prev => prev.map(m => m.id === moduleId ? { ...m, status } : m))
+  }, [])
+
+  // Add log
   const addLog = useCallback((level: LogEntry["level"], code: string, message?: string) => {
-    setLogs(prev => [...prev, {
+    setLogs(prev => [{
       id: `log-${Date.now()}-${Math.random()}`,
       timestamp: new Date(),
       level,
       code,
       message,
-    }])
+    }, ...prev].slice(0, 100))
   }, [])
 
-  // Update worker status
-  const updateWorker = useCallback((workerId: string, status: WorkerStatus) => {
-    setWorkers(prev => prev.map(w => w.id === workerId ? { ...w, status } : w))
-  }, [])
-
-  // Simulate event flow
-  const handleSimularEvento = useCallback(async (tipo: string, mensagem: string) => {
+  // Simulate event
+  const handleSimulate = useCallback(async (simulation: Simulation) => {
+    if (isSimulating) return
     setIsSimulating(true)
-    const flow = FLOW_MAP[tipo] || FLOW_MAP.dispositivo
-    const eventoId = `evt-${Date.now()}`
+
+    const flow = FLOWS[simulation.id]
+    if (!flow) {
+      setIsSimulating(false)
+      return
+    }
+
+    const eventId = `evt-${Date.now()}`
     const now = new Date()
 
-    // 1. Event enters
-    const novoEvento: EventoEntrada = {
-      id: eventoId,
-      tipo: tipo as EventoEntrada["tipo"],
-      mensagem,
+    // Add event
+    setEvents(prev => [{
+      id: eventId,
+      text: `Cliente respondeu: "${simulation.label}"`,
       timestamp: now,
-      status: "entering",
-    }
-    setEventos(prev => [novoEvento, ...prev].slice(0, 10))
-    setOrbState({ status: "receiving", message: mensagem })
-    addLog("info", flow.logs[0] || "EVENT_RECEIVED", mensagem)
+      type: simulation.type,
+    }, ...prev].slice(0, 20))
 
-    await new Promise(r => setTimeout(r, 600))
+    // Set client context
+    setClientContext({
+      name: "João Silva",
+      phone: "(22) 9****-1234",
+      app: "XCloud",
+      device: simulation.id === "tv-lg" ? "LG" : "Detectando...",
+      origin: "Painel / Teste #0001",
+      currentFlow: flow.module.charAt(0).toUpperCase() + flow.module.slice(1),
+    })
 
-    // 2. Processing
-    setEventos(prev => prev.map(e => e.id === eventoId ? { ...e, status: "processing" } : e))
-    setOrbState({ status: "interpreting", message: "Interpretando contexto..." })
-    
-    await new Promise(r => setTimeout(r, 500))
-    setOrbState({ status: "classifying", message: "Classificando evento..." })
-    addLog("info", flow.logs[1] || "FLOW_SELECTED")
-    
-    await new Promise(r => setTimeout(r, 500))
-    setOrbState({ status: "routing", message: `Roteando para ${flow.worker}...` })
-    
-    // 3. Activate worker
-    await new Promise(r => setTimeout(r, 400))
-    updateWorker(flow.worker, "processing")
-    setOrbState({ status: "executing", message: "Executando fluxo..." })
+    // Process states
+    let logIndex = 0
+    let actionIndex = 0
+    for (const step of flow.states) {
+      setJarvisState(step.state)
+      setStatusText(step.text)
+      setActiveModule(flow.module)
 
-    // Add execution to queue
-    const execucaoId = `exec-${Date.now()}`
-    setExecucoes(prev => [{
-      id: execucaoId,
-      fluxo: flow.worker.charAt(0).toUpperCase() + flow.worker.slice(1),
-      descricao: mensagem,
-      status: "running",
-      progresso: 0,
-      timestamp: now,
-    }, ...prev].slice(0, 8))
-
-    // 4. Dispatch actions
-    for (let i = 0; i < flow.acoes.length; i++) {
-      await new Promise(r => setTimeout(r, 400))
-      
-      const acaoId = `acao-${Date.now()}-${i}`
-      const novaAcao: AcaoSaida = {
-        id: acaoId,
-        tipo: "mensagem",
-        descricao: flow.acoes[i],
-        timestamp: new Date(),
-        status: "dispatching",
+      // Update module status
+      if (step.state === "executing" || step.state === "retry") {
+        updateModuleStatus(flow.module, "processing")
+      } else if (step.state === "failed") {
+        updateModuleStatus(flow.module, "failed")
+      } else if (step.state === "completed") {
+        updateModuleStatus(flow.module, "completed")
       }
-      setAcoes(prev => [novaAcao, ...prev].slice(0, 10))
-      addLog("success", flow.logs[i + 2] || `ACTION_${i + 1}_DISPATCHED`)
-      
-      // Update progress
-      setExecucoes(prev => prev.map(e => 
-        e.id === execucaoId 
-          ? { ...e, progresso: Math.round(((i + 1) / flow.acoes.length) * 100) }
-          : e
-      ))
 
-      await new Promise(r => setTimeout(r, 300))
-      setAcoes(prev => prev.map(a => a.id === acaoId ? { ...a, status: "sent" } : a))
+      // Add log if available
+      if (flow.logs[logIndex]) {
+        addLog(flow.logs[logIndex].level, flow.logs[logIndex].code, flow.logs[logIndex].message)
+        logIndex++
+      }
+
+      // Add action during executing state
+      if ((step.state === "executing" || step.state === "preparing" || step.state === "detecting") && flow.actions[actionIndex]) {
+        const actionId = `action-${Date.now()}-${actionIndex}`
+        setActions(prev => [{
+          id: actionId,
+          text: flow.actions[actionIndex],
+          timestamp: new Date(),
+          status: "executing",
+        }, ...prev].slice(0, 20))
+        
+        setTimeout(() => {
+          setActions(prev => prev.map(a => a.id === actionId ? { ...a, status: "completed" } : a))
+        }, step.duration - 100)
+        
+        actionIndex++
+      }
+
+      await new Promise(r => setTimeout(r, step.duration))
     }
 
-    // 5. Complete
-    await new Promise(r => setTimeout(r, 400))
-    setOrbState({ status: "validating", message: "Validando retorno..." })
-    
-    // Simulate occasional failure
-    const shouldFail = tipo === "audio_falhou" && Math.random() > 0.5
-
-    await new Promise(r => setTimeout(r, 500))
-    
-    if (shouldFail) {
-      setOrbState({ status: "failed", message: "Falha no envio" })
-      updateWorker(flow.worker, "failed")
-      setExecucoes(prev => prev.map(e => 
-        e.id === execucaoId ? { ...e, status: "failed" } : e
-      ))
-      addLog("error", "FLOW_FAILED", "Erro no envio de mídia")
-      
-      // Add to failures
-      setFalhas(prev => [{
-        id: `falha-${Date.now()}`,
-        fluxo: flow.worker.charAt(0).toUpperCase() + flow.worker.slice(1),
-        etapa: flow.acoes[flow.acoes.length - 1],
-        erro: "MEDIA_SEND_FAILED - Timeout na conexão",
+    // Add remaining actions if any
+    while (actionIndex < flow.actions.length) {
+      const actionId = `action-${Date.now()}-${actionIndex}`
+      setActions(prev => [{
+        id: actionId,
+        text: flow.actions[actionIndex],
         timestamp: new Date(),
-        tentativas: 1,
-      }, ...prev])
-    } else {
-      setOrbState({ status: "success", message: "Fluxo concluído!" })
-      updateWorker(flow.worker, "success")
-      setExecucoes(prev => prev.map(e => 
-        e.id === execucaoId ? { ...e, status: "success" } : e
-      ))
-      addLog("success", "FLOW_COMPLETED", `${flow.worker} finalizado com sucesso`)
+        status: "completed",
+      }, ...prev].slice(0, 20))
+      actionIndex++
+      await new Promise(r => setTimeout(r, 200))
     }
 
-    setEventos(prev => prev.map(e => e.id === eventoId ? { ...e, status: "processed" } : e))
-
-    // Update client context
-    if (tipo === "dispositivo") {
-      const aparelho = mensagem.includes("LG") ? "LG" : mensagem.includes("Samsung") ? "Samsung" : "Fire Stick"
-      setCliente(prev => ({
-        ...prev,
-        aparelho,
-        ultimaEntrada: mensagem,
-        ultimaSaida: `Instruções ${aparelho} enviadas`,
-        statusAtual: "Instalação enviada",
-      }))
+    // Handle failure for audio scenario
+    if (simulation.id === "audio-falhou" && Math.random() > 0.7) {
+      setFailures(prev => [{
+        id: `fail-${Date.now()}`,
+        text: "Áudio 4 falhou novamente",
+        timestamp: new Date(),
+        retryCount: 2,
+      }, ...prev])
     }
 
     // Reset after delay
     await new Promise(r => setTimeout(r, 2000))
-    setOrbState({ status: "idle" })
-    updateWorker(flow.worker, "idle")
+    setJarvisState("idle")
+    setStatusText("Aguardando evento")
+    setActiveModule(undefined)
+    updateModuleStatus(flow.module, "ready")
     setIsSimulating(false)
-  }, [addLog, updateWorker])
+  }, [isSimulating, addLog, updateModuleStatus])
 
-  // Handle retry
-  const handleRetry = useCallback((falha: Falha) => {
-    setFalhas(prev => prev.filter(f => f.id !== falha.id))
-    handleSimularEvento("audio_falhou", `Retry: ${falha.etapa}`)
-  }, [handleSimularEvento])
+  // Handle failure actions
+  const handleRetry = useCallback((id: string) => {
+    const failure = failures.find(f => f.id === id)
+    if (failure) {
+      setFailures(prev => prev.filter(f => f.id !== id))
+      handleSimulate({ id: "audio-falhou", label: "Áudio 4 falhou", icon: null, type: "audio" } as Simulation)
+    }
+  }, [failures, handleSimulate])
+
+  const handleSkip = useCallback((id: string) => {
+    setFailures(prev => prev.filter(f => f.id !== id))
+    addLog("warning", "FAILURE_SKIPPED", "Falha ignorada pelo operador")
+  }, [addLog])
+
+  const handleResolve = useCallback((id: string) => {
+    setFailures(prev => prev.filter(f => f.id !== id))
+    addLog("success", "FAILURE_RESOLVED", "Marcado como resolvido")
+  }, [addLog])
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
-      <HeaderOrquestrador origem="Painel Gestão / Teste #0001" />
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Header */}
+      <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-chart-2 pulse-dot" />
+              <span className="text-xs font-mono text-muted-foreground">SISTEMA ATIVO</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <span className="text-sm text-foreground">Central Play+ — Orquestrador</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-muted-foreground">
+              {new Date().toLocaleTimeString("pt-BR")}
+            </span>
+            <Settings className="w-4 h-4 text-muted-foreground" />
+          </div>
+        </div>
+      </header>
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         {/* Tab navigation */}
-        <div className="border-b border-border/50 bg-card/30">
-          <div className="max-w-[1800px] mx-auto px-6">
-            <TabsList className="h-12 bg-transparent gap-1 p-0">
+        <div className="border-b border-border/50 bg-card/20">
+          <div className="max-w-[1920px] mx-auto px-6">
+            <TabsList className="h-11 bg-transparent gap-1 p-0">
               <TabsTrigger
                 value="central"
-                className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border-primary/30 border border-transparent px-4 gap-2"
+                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 gap-2"
               >
                 <Activity className="w-4 h-4" />
                 Central
               </TabsTrigger>
               <TabsTrigger
-                value="execucoes"
-                className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border-primary/30 border border-transparent px-4 gap-2"
-              >
-                <ListTodo className="w-4 h-4" />
-                Execuções
-              </TabsTrigger>
-              <TabsTrigger
                 value="falhas"
-                className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border-primary/30 border border-transparent px-4 gap-2"
+                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 gap-2"
               >
                 <AlertTriangle className="w-4 h-4" />
-                Falhas & Retry
-                {falhas.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-destructive/20 text-destructive rounded">
-                    {falhas.length}
+                Falhas
+                {failures.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-destructive text-white rounded">
+                    {failures.length}
                   </span>
                 )}
               </TabsTrigger>
               <TabsTrigger
-                value="logs"
-                className="data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border-primary/30 border border-transparent px-4 gap-2"
+                value="console"
+                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 gap-2"
               >
                 <Terminal className="w-4 h-4" />
-                Logs
+                Console
               </TabsTrigger>
             </TabsList>
           </div>
         </div>
 
-        {/* Central Tab - Main command center view */}
+        {/* Central Tab */}
         <TabsContent value="central" className="mt-0">
-          <div className="max-w-[1800px] mx-auto p-6">
-            <div className="grid grid-cols-12 gap-6 min-h-[calc(100vh-180px)]">
-              {/* Left column - Entradas */}
-              <div className="col-span-12 lg:col-span-2">
-                <EntradasPanel eventos={eventos} className="h-full" />
+          <div className="max-w-[1920px] mx-auto">
+            <div className="grid grid-cols-12 min-h-[calc(100vh-120px)]">
+              {/* Left - Events */}
+              <div className="col-span-12 lg:col-span-2 border-r border-border/30 bg-card/20">
+                <EventsPanel events={events} />
               </div>
 
-              {/* Center - Orquestrador + Workers */}
-              <div className="col-span-12 lg:col-span-8">
-                <div className="relative flex items-center justify-center min-h-[500px]">
-                  {/* Workers ring */}
-                  <WorkersRing workers={workers} />
+              {/* Center - JARVIS Core */}
+              <div className="col-span-12 lg:col-span-8 flex flex-col">
+                {/* Main command center */}
+                <div className="flex-1 relative flex items-center justify-center py-8">
+                  {/* Modules ring */}
+                  <ModulesRing modules={modules} activeModuleId={activeModule} />
                   
-                  {/* Central Orb */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <OrquestradorOrb state={orbState} />
-                    <OrquestradorStatus state={orbState} />
-                  </div>
-                </div>
-
-                {/* Fila de execuções (compact) */}
-                <div className="mt-6">
-                  <FilaExecucoes 
-                    execucoes={execucoes.slice(0, 4)} 
-                    onRetry={(e) => handleSimularEvento("audio_falhou", `Retry: ${e.descricao}`)}
+                  {/* JARVIS Core */}
+                  <JarvisCore 
+                    state={jarvisState} 
+                    statusText={statusText}
+                    activeModule={activeModule}
                   />
                 </div>
+
+                {/* Bottom section */}
+                <div className="border-t border-border/30 p-6 bg-card/10">
+                  <div className="grid grid-cols-12 gap-6">
+                    {/* Simulator */}
+                    <div className="col-span-12 lg:col-span-5">
+                      <SimulatorPanel 
+                        onSimulate={handleSimulate}
+                        disabled={isSimulating}
+                      />
+                    </div>
+
+                    {/* Context */}
+                    <div className="col-span-12 lg:col-span-3">
+                      <ContextCard context={clientContext} />
+                    </div>
+
+                    {/* Mini terminal */}
+                    <div className="col-span-12 lg:col-span-4">
+                      <TerminalConsole 
+                        logs={logs.slice(0, 8)}
+                        commandInput={commandInput}
+                        onCommandChange={setCommandInput}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Right column - Saídas */}
-              <div className="col-span-12 lg:col-span-2">
-                <SaidasPanel acoes={acoes} className="h-full" />
+              {/* Right - Actions */}
+              <div className="col-span-12 lg:col-span-2 border-l border-border/30 bg-card/20">
+                <ActionsPanel actions={actions} />
               </div>
             </div>
-
-            {/* Bottom row - Simulator and Context */}
-            <div className="grid grid-cols-12 gap-6 mt-6">
-              <div className="col-span-12 lg:col-span-4">
-                <SimuladorEventos 
-                  onSimular={handleSimularEvento} 
-                  isSimulating={isSimulating}
-                />
-              </div>
-              <div className="col-span-12 lg:col-span-4">
-                <ContextoPanel cliente={cliente} origem="Painel Gestão / Teste #0001" />
-              </div>
-              <div className="col-span-12 lg:col-span-4">
-                <LogsTerminal logs={logs.slice(0, 15)} className="h-full" />
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* Execuções Tab */}
-        <TabsContent value="execucoes" className="mt-0">
-          <div className="max-w-[1400px] mx-auto p-6">
-            <FilaExecucoes 
-              execucoes={execucoes} 
-              onRetry={(e) => handleSimularEvento("audio_falhou", `Retry: ${e.descricao}`)}
-            />
           </div>
         </TabsContent>
 
         {/* Falhas Tab */}
         <TabsContent value="falhas" className="mt-0">
-          <div className="max-w-[1200px] mx-auto p-6">
-            <FalhasRetry 
-              falhas={falhas}
+          <div className="max-w-[1000px] mx-auto p-6">
+            <FailuresPanel 
+              failures={failures}
               onRetry={handleRetry}
-              onSkip={(f) => setFalhas(prev => prev.filter(x => x.id !== f.id))}
-              onMarcarConcluido={(f) => setFalhas(prev => prev.filter(x => x.id !== f.id))}
+              onSkip={handleSkip}
+              onResolve={handleResolve}
             />
           </div>
         </TabsContent>
 
-        {/* Logs Tab */}
-        <TabsContent value="logs" className="mt-0">
+        {/* Console Tab */}
+        <TabsContent value="console" className="mt-0">
           <div className="max-w-[1400px] mx-auto p-6">
-            <LogsTerminal logs={logs} className="h-[calc(100vh-220px)]" />
+            <TerminalConsole 
+              logs={logs}
+              commandInput={commandInput}
+              onCommandChange={setCommandInput}
+            />
           </div>
         </TabsContent>
       </Tabs>
