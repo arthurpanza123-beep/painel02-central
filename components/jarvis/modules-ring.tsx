@@ -46,8 +46,8 @@ const statusLabels: Record<ModuleStatus, string> = {
 }
 
 export function ModulesRing({ modules, activeModuleId }: ModulesRingProps) {
-  // Position modules around a circle
-  const radius = 240 // Distance from center
+  // Position modules around a circle - LARGER radius for more breathing room
+  const radius = 320 // Increased from 240
   const startAngle = -90 // Start from top
   const angleStep = 360 / modules.length
 
@@ -71,40 +71,22 @@ export function ModulesRing({ modules, activeModuleId }: ModulesRingProps) {
           >
             <div
               className={cn(
-                "relative flex flex-col items-center gap-1.5 p-3 rounded-xl",
+                "relative flex flex-col items-center gap-2 p-4 rounded-2xl",
                 "border backdrop-blur-sm transition-all duration-300",
                 colors.bg, colors.border,
                 isActive && "scale-110",
                 colors.glow
               )}
             >
-              {/* Connection line to center */}
-              <div
-                className={cn(
-                  "absolute w-px bg-gradient-to-b from-primary/30 to-transparent",
-                  isActive && "from-primary/60 energy-line"
-                )}
-                style={{
-                  height: `${radius - 80}px`,
-                  transformOrigin: "top center",
-                  transform: `rotate(${angle + 90}deg)`,
-                  top: "50%",
-                  left: "50%",
-                }}
-              />
-
-              <div className={cn("p-2 rounded-lg", colors.bg, colors.text)}>
+              <div className={cn("p-2.5 rounded-xl", colors.bg, colors.text)}>
                 {module.icon}
               </div>
-              <span className={cn("text-[10px] font-medium tracking-wide", colors.text)}>
+              <span className={cn("text-xs font-medium", colors.text)}>
                 {module.name}
-              </span>
-              <span className={cn("text-[9px] font-mono", colors.text)}>
-                {statusLabels[module.status]}
               </span>
               {module.count !== undefined && module.count > 0 && (
                 <span className={cn(
-                  "absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full",
+                  "absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] rounded-full",
                   "flex items-center justify-center text-[10px] font-mono",
                   module.status === "failed" ? "bg-destructive text-white" : "bg-primary text-primary-foreground"
                 )}>

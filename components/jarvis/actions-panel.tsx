@@ -23,20 +23,17 @@ const statusConfig: Record<ActionEntry["status"], { icon: React.ReactNode; color
 export function ActionsPanel({ actions }: ActionsPanelProps) {
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+      {/* Header - more padding */}
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-border/30">
         <ArrowRight className="w-4 h-4 text-chart-2" />
-        <span className="text-xs font-semibold tracking-wider text-chart-2">AÇÕES DISPARADAS</span>
-        <span className="ml-auto text-[10px] font-mono text-muted-foreground">
-          {actions.filter(a => a.status === "completed").length}/{actions.length}
-        </span>
+        <span className="text-xs font-medium tracking-wider text-chart-2/80">AÇÕES</span>
       </div>
 
-      {/* Actions list */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {/* Actions list - more spacing */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {actions.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            Nenhuma ação ainda...
+          <div className="text-center py-12 text-muted-foreground/60 text-sm">
+            Nenhuma ação...
           </div>
         ) : (
           actions.map((action, index) => {
@@ -45,28 +42,20 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
               <div
                 key={action.id}
                 className={cn(
-                  "p-3 rounded-lg bg-secondary/50 border-l-2 flow-in-right",
+                  "p-4 rounded-xl bg-secondary/40 border-l-2 flow-in-right",
                   action.status === "completed" ? "border-l-chart-2" : 
                   action.status === "executing" ? "border-l-primary" : "border-l-muted-foreground"
                 )}
                 style={{ animationDelay: `${Math.min(index, 5) * 0.05}s` }}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className={config.color}>{config.icon}</span>
-                      <span className={cn("text-[10px] font-mono", config.color)}>
-                        {action.status === "completed" ? "CONCLUÍDO" : 
-                         action.status === "executing" ? "EXECUTANDO" : "PREPARANDO"}
-                      </span>
-                    </div>
-                    <div className="text-sm text-foreground leading-relaxed mt-1">
-                      {action.text}
-                    </div>
-                  </div>
-                  <div className="text-[9px] font-mono text-muted-foreground shrink-0">
-                    {action.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={config.color}>{config.icon}</span>
+                  <span className={cn("text-[10px] font-mono", config.color)}>
+                    {action.status === "completed" ? "OK" : "..."}
+                  </span>
+                </div>
+                <div className="text-sm text-foreground leading-relaxed">
+                  {action.text}
                 </div>
               </div>
             )
@@ -74,10 +63,10 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
         )}
       </div>
 
-      {/* Data stream indicator */}
-      <div className="h-1 bg-secondary overflow-hidden">
+      {/* Subtle data stream indicator */}
+      <div className="h-0.5 bg-secondary/50 overflow-hidden">
         <div 
-          className="h-full w-1/3 bg-gradient-to-r from-transparent via-chart-2/50 to-transparent data-stream-right"
+          className="h-full w-1/4 bg-gradient-to-r from-transparent via-chart-2/40 to-transparent data-stream-right"
         />
       </div>
     </div>

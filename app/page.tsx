@@ -306,41 +306,36 @@ export default function JarvisPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-chart-2 pulse-dot" />
-              <span className="text-xs font-mono text-muted-foreground">SISTEMA ATIVO</span>
+      {/* Header - minimal */}
+      <header className="border-b border-border/30 bg-card/20 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-[1920px] mx-auto px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-chart-2/80 pulse-dot" />
+              <span className="text-xs font-mono text-muted-foreground/60">ATIVO</span>
             </div>
-            <div className="h-4 w-px bg-border" />
-            <span className="text-sm text-foreground">Central Play+ — Orquestrador</span>
+            <div className="h-4 w-px bg-border/30" />
+            <span className="text-sm text-foreground/80">Central Play+</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted-foreground">
-              {new Date().toLocaleTimeString("pt-BR")}
-            </span>
-            <Settings className="w-4 h-4 text-muted-foreground" />
-          </div>
+          <Settings className="w-4 h-4 text-muted-foreground/40" />
         </div>
       </header>
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        {/* Tab navigation */}
-        <div className="border-b border-border/50 bg-card/20">
-          <div className="max-w-[1920px] mx-auto px-6">
-            <TabsList className="h-11 bg-transparent gap-1 p-0">
+        {/* Tab navigation - cleaner */}
+        <div className="border-b border-border/30 bg-card/10">
+          <div className="max-w-[1920px] mx-auto px-8">
+            <TabsList className="h-12 bg-transparent gap-2 p-0">
               <TabsTrigger
                 value="central"
-                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 gap-2"
+                className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-5 gap-2"
               >
                 <Activity className="w-4 h-4" />
                 Central
               </TabsTrigger>
               <TabsTrigger
                 value="falhas"
-                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 gap-2"
+                className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-5 gap-2"
               >
                 <AlertTriangle className="w-4 h-4" />
                 Falhas
@@ -352,7 +347,7 @@ export default function JarvisPage() {
               </TabsTrigger>
               <TabsTrigger
                 value="console"
-                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 gap-2"
+                className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-5 gap-2"
               >
                 <Terminal className="w-4 h-4" />
                 Console
@@ -361,19 +356,19 @@ export default function JarvisPage() {
           </div>
         </div>
 
-        {/* Central Tab */}
+        {/* Central Tab - more breathing room */}
         <TabsContent value="central" className="mt-0">
           <div className="max-w-[1920px] mx-auto">
-            <div className="grid grid-cols-12 min-h-[calc(100vh-120px)]">
-              {/* Left - Events */}
-              <div className="col-span-12 lg:col-span-2 border-r border-border/30 bg-card/20">
+            <div className="grid grid-cols-12 min-h-[calc(100vh-130px)]">
+              {/* Left - Events - wider */}
+              <div className="col-span-12 lg:col-span-2 border-r border-border/20 bg-card/10">
                 <EventsPanel events={events} />
               </div>
 
-              {/* Center - JARVIS Core */}
+              {/* Center - JARVIS Core - more space */}
               <div className="col-span-12 lg:col-span-8 flex flex-col">
-                {/* Main command center */}
-                <div className="flex-1 relative flex items-center justify-center py-8">
+                {/* Main command center - MORE VERTICAL SPACE */}
+                <div className="flex-1 relative flex items-center justify-center py-16 min-h-[600px]">
                   {/* Modules ring */}
                   <ModulesRing modules={modules} activeModuleId={activeModule} />
                   
@@ -385,9 +380,9 @@ export default function JarvisPage() {
                   />
                 </div>
 
-                {/* Bottom section */}
-                <div className="border-t border-border/30 p-6 bg-card/10">
-                  <div className="grid grid-cols-12 gap-6">
+                {/* Bottom section - more spacing */}
+                <div className="border-t border-border/20 p-8 bg-card/5">
+                  <div className="grid grid-cols-12 gap-8">
                     {/* Simulator */}
                     <div className="col-span-12 lg:col-span-5">
                       <SimulatorPanel 
@@ -404,7 +399,7 @@ export default function JarvisPage() {
                     {/* Mini terminal */}
                     <div className="col-span-12 lg:col-span-4">
                       <TerminalConsole 
-                        logs={logs.slice(0, 8)}
+                        logs={logs.slice(0, 6)}
                         commandInput={commandInput}
                         onCommandChange={setCommandInput}
                       />
@@ -413,8 +408,8 @@ export default function JarvisPage() {
                 </div>
               </div>
 
-              {/* Right - Actions */}
-              <div className="col-span-12 lg:col-span-2 border-l border-border/30 bg-card/20">
+              {/* Right - Actions - wider */}
+              <div className="col-span-12 lg:col-span-2 border-l border-border/20 bg-card/10">
                 <ActionsPanel actions={actions} />
               </div>
             </div>

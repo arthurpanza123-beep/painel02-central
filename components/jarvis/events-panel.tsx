@@ -26,53 +26,43 @@ const typeColors: Record<EventEntry["type"], string> = {
 export function EventsPanel({ events }: EventsPanelProps) {
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+      {/* Header - more padding */}
+      <div className="flex items-center gap-3 px-6 py-5 border-b border-border/30">
         <Zap className="w-4 h-4 text-primary" />
-        <span className="text-xs font-semibold tracking-wider text-primary">EVENTOS RECEBIDOS</span>
-        <span className="ml-auto text-[10px] font-mono text-muted-foreground">
-          {events.length} ativos
-        </span>
+        <span className="text-xs font-medium tracking-wider text-primary/80">EVENTOS</span>
       </div>
 
-      {/* Events list */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {/* Events list - more spacing */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {events.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            Aguardando eventos...
+          <div className="text-center py-12 text-muted-foreground/60 text-sm">
+            Aguardando...
           </div>
         ) : (
           events.map((event, index) => (
             <div
               key={event.id}
               className={cn(
-                "p-3 rounded-lg bg-secondary/50 border-l-2 flow-in-left",
+                "p-4 rounded-xl bg-secondary/40 border-l-2 flow-in-left",
                 typeColors[event.type]
               )}
               style={{ animationDelay: `${Math.min(index, 5) * 0.05}s` }}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-mono text-muted-foreground mb-1">
-                    EVENTO RECEBIDO
-                  </div>
-                  <div className="text-sm text-foreground leading-relaxed">
-                    {event.text}
-                  </div>
-                </div>
-                <div className="text-[9px] font-mono text-muted-foreground shrink-0">
-                  {event.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                </div>
+              <div className="text-sm text-foreground leading-relaxed">
+                {event.text}
+              </div>
+              <div className="text-[10px] font-mono text-muted-foreground/60 mt-2">
+                {event.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Data stream indicator */}
-      <div className="h-1 bg-secondary overflow-hidden">
+      {/* Subtle data stream indicator */}
+      <div className="h-0.5 bg-secondary/50 overflow-hidden">
         <div 
-          className="h-full w-1/3 bg-gradient-to-r from-transparent via-primary/50 to-transparent data-stream-left"
+          className="h-full w-1/4 bg-gradient-to-r from-transparent via-primary/40 to-transparent data-stream-left"
         />
       </div>
     </div>

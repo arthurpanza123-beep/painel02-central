@@ -35,13 +35,13 @@ const simulations: Simulation[] = [
 
 export function SimulatorPanel({ onSimulate, disabled }: SimulatorPanelProps) {
   return (
-    <div className="flex flex-col gap-3 p-4 bg-secondary/30 rounded-xl border border-border/50">
-      <div className="flex items-center gap-2">
-        <Zap className="w-4 h-4 text-primary" />
-        <span className="text-xs font-semibold tracking-wider text-primary">SIMULAR EVENTO</span>
+    <div className="flex flex-col gap-5 p-6 bg-secondary/20 rounded-2xl border border-border/30">
+      <div className="flex items-center gap-3">
+        <Zap className="w-4 h-4 text-primary/70" />
+        <span className="text-xs font-medium tracking-wider text-primary/60">SIMULAR</span>
       </div>
       
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-3">
         {simulations.map((sim) => (
           <Button
             key={sim.id}
@@ -50,14 +50,14 @@ export function SimulatorPanel({ onSimulate, disabled }: SimulatorPanelProps) {
             disabled={disabled}
             onClick={() => onSimulate(sim)}
             className={cn(
-              "h-auto py-2.5 px-3 flex flex-col items-center gap-1.5",
-              "border-primary/20 hover:border-primary/50 hover:bg-primary/5",
-              "transition-all duration-200",
+              "h-auto py-4 px-4 flex flex-col items-center gap-2.5",
+              "border-border/30 hover:border-primary/40 hover:bg-primary/5",
+              "transition-all duration-200 rounded-xl",
               disabled && "opacity-50"
             )}
           >
-            <span className="text-primary">{sim.icon}</span>
-            <span className="text-[10px] font-medium text-foreground">{sim.label}</span>
+            <span className="text-primary/70">{sim.icon}</span>
+            <span className="text-xs font-medium text-foreground/80">{sim.label}</span>
           </Button>
         ))}
       </div>
