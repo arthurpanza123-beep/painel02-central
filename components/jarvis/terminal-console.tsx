@@ -28,24 +28,24 @@ const levelConfig: Record<LogEntry["level"], { prefix: string; color: string }> 
 
 export function TerminalConsole({ logs, commandInput = "", onCommandChange, onCommandSubmit }: TerminalConsoleProps) {
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-card to-secondary/30 border border-border rounded-2xl overflow-hidden">
-      {/* Header - premium */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-secondary/30">
-        <div className="p-2 rounded-lg bg-primary/15">
-          <Terminal className="w-4 h-4 text-primary" />
+    <div className="flex flex-col h-full bg-card/60 border border-border/50 rounded-xl overflow-hidden">
+      {/* Header - refined */}
+      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border/40 bg-secondary/20">
+        <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+          <Terminal className="w-3.5 h-3.5 text-primary" />
         </div>
-        <span className="text-sm font-semibold text-foreground">Console</span>
+        <span className="text-sm font-semibold text-foreground/90">Console</span>
         <div className="ml-auto flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-chart-2 pulse-dot glow-green" />
+          <div className="w-1.5 h-1.5 rounded-full bg-chart-2 pulse-dot glow-green" />
         </div>
       </div>
 
-      {/* Logs - premium style */}
+      {/* Logs - refined */}
       <ScrollArea className="flex-1">
-        <div className="p-5 font-mono text-xs space-y-2">
+        <div className="p-4 font-mono text-xs space-y-1.5">
           {logs.length === 0 ? (
-            <div className="text-muted-foreground">
-              <span className="text-primary">$</span> aguardando...
+            <div className="text-muted-foreground/50">
+              <span className="text-primary/60">$</span> aguardando...
             </div>
           ) : (
             <>
@@ -57,10 +57,10 @@ export function TerminalConsole({ logs, commandInput = "", onCommandChange, onCo
                     className="flex items-start gap-3 terminal-line"
                     style={{ animationDelay: `${Math.min(index, 10) * 0.03}s` }}
                   >
-                    <span className={cn("shrink-0 w-12 font-semibold", config.color)}>
+                    <span className={cn("shrink-0 w-11 font-semibold opacity-90", config.color)}>
                       {config.prefix}
                     </span>
-                    <span className="text-foreground">{log.code}</span>
+                    <span className="text-foreground/80">{log.code}</span>
                   </div>
                 )
               })}

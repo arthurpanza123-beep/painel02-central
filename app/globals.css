@@ -49,44 +49,44 @@
 }
 
 :root {
-  /* Premium dark azulado - mais claro e elegante, identidade Central Play */
-  --background: oklch(0.12 0.025 245);
-  --foreground: oklch(0.95 0.01 220);
-  --card: oklch(0.15 0.03 245);
-  --card-foreground: oklch(0.95 0.01 220);
-  --popover: oklch(0.15 0.03 245);
-  --popover-foreground: oklch(0.95 0.01 220);
-  --primary: oklch(0.65 0.20 250);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.20 0.035 245);
-  --secondary-foreground: oklch(0.90 0.01 220);
-  --muted: oklch(0.22 0.03 245);
-  --muted-foreground: oklch(0.65 0.02 240);
-  --accent: oklch(0.65 0.20 250);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.60 0.20 25);
-  --border: oklch(0.32 0.04 245);
-  --input: oklch(0.25 0.035 245);
-  --ring: oklch(0.65 0.20 250);
-  /* Status colors - mais vibrantes */
-  --success: oklch(0.68 0.16 152);
-  --warning: oklch(0.75 0.16 55);
-  --info: oklch(0.65 0.20 250);
-  /* Chart - cores mais vivas */
-  --chart-1: oklch(0.65 0.20 250);
-  --chart-2: oklch(0.68 0.16 152);
-  --chart-3: oklch(0.75 0.16 55);
-  --chart-4: oklch(0.60 0.20 25);
-  --chart-5: oklch(0.55 0.15 280);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.13 0.028 245);
-  --sidebar-foreground: oklch(0.95 0.01 220);
-  --sidebar-primary: oklch(0.65 0.20 250);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.20 0.035 245);
-  --sidebar-accent-foreground: oklch(0.90 0.01 220);
-  --sidebar-border: oklch(0.32 0.04 245);
-  --sidebar-ring: oklch(0.65 0.20 250);
+  /* Premium dark azulado - mais profundo e elegante, identidade Central Play Plus */
+  --background: oklch(0.10 0.028 248);
+  --foreground: oklch(0.96 0.008 220);
+  --card: oklch(0.14 0.035 248);
+  --card-foreground: oklch(0.96 0.008 220);
+  --popover: oklch(0.14 0.035 248);
+  --popover-foreground: oklch(0.96 0.008 220);
+  --primary: oklch(0.68 0.18 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.18 0.04 248);
+  --secondary-foreground: oklch(0.92 0.008 220);
+  --muted: oklch(0.20 0.035 248);
+  --muted-foreground: oklch(0.58 0.025 245);
+  --accent: oklch(0.68 0.18 255);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.62 0.22 22);
+  --border: oklch(0.28 0.05 250);
+  --input: oklch(0.22 0.04 248);
+  --ring: oklch(0.68 0.18 255);
+  /* Status colors - mais vibrantes e elegantes */
+  --success: oklch(0.70 0.18 150);
+  --warning: oklch(0.78 0.18 52);
+  --info: oklch(0.68 0.18 255);
+  /* Chart - paleta premium */
+  --chart-1: oklch(0.68 0.18 255);
+  --chart-2: oklch(0.70 0.18 150);
+  --chart-3: oklch(0.78 0.18 52);
+  --chart-4: oklch(0.62 0.22 22);
+  --chart-5: oklch(0.58 0.16 285);
+  --radius: 0.875rem;
+  --sidebar: oklch(0.11 0.032 248);
+  --sidebar-foreground: oklch(0.96 0.008 220);
+  --sidebar-primary: oklch(0.68 0.18 255);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.18 0.04 248);
+  --sidebar-accent-foreground: oklch(0.92 0.008 220);
+  --sidebar-border: oklch(0.28 0.05 250);
+  --sidebar-ring: oklch(0.68 0.18 255);
 }
 
 @layer base {
@@ -102,94 +102,101 @@
 }
 
 @layer utilities {
-  /* ===== PREMIUM GLOW EFFECTS - Central Play Identity ===== */
+  /* ===== PREMIUM GLOW EFFECTS - Central Play Plus Identity ===== */
   .jarvis-glow {
     box-shadow: 
-      0 0 60px oklch(0.65 0.20 250 / 30%),
-      0 0 120px oklch(0.65 0.20 250 / 15%),
-      0 0 180px oklch(0.55 0.15 280 / 8%),
-      inset 0 0 60px oklch(0.65 0.20 250 / 10%);
+      0 0 50px oklch(0.68 0.18 255 / 25%),
+      0 0 100px oklch(0.68 0.18 255 / 12%),
+      0 0 150px oklch(0.58 0.16 285 / 6%),
+      inset 0 0 50px oklch(0.68 0.18 255 / 8%);
   }
   .jarvis-glow-intense {
     box-shadow: 
-      0 0 80px oklch(0.65 0.20 250 / 40%),
-      0 0 160px oklch(0.65 0.20 250 / 25%),
-      0 0 240px oklch(0.55 0.15 280 / 12%),
-      inset 0 0 80px oklch(0.65 0.20 250 / 20%);
+      0 0 70px oklch(0.68 0.18 255 / 35%),
+      0 0 140px oklch(0.68 0.18 255 / 18%),
+      0 0 200px oklch(0.58 0.16 285 / 10%),
+      inset 0 0 70px oklch(0.68 0.18 255 / 15%);
   }
   .glow-blue {
-    box-shadow: 0 0 25px oklch(0.65 0.20 250 / 35%), 0 0 50px oklch(0.65 0.20 250 / 15%);
+    box-shadow: 0 0 20px oklch(0.68 0.18 255 / 30%), 0 0 40px oklch(0.68 0.18 255 / 12%);
   }
   .glow-blue-sm {
-    box-shadow: 0 0 15px oklch(0.65 0.20 250 / 30%);
+    box-shadow: 0 0 12px oklch(0.68 0.18 255 / 35%);
   }
   .glow-green {
-    box-shadow: 0 0 20px oklch(0.68 0.16 152 / 40%);
+    box-shadow: 0 0 15px oklch(0.70 0.18 150 / 45%);
   }
   .glow-red {
-    box-shadow: 0 0 20px oklch(0.60 0.20 25 / 40%);
+    box-shadow: 0 0 15px oklch(0.62 0.22 22 / 45%);
   }
   .glow-yellow {
-    box-shadow: 0 0 20px oklch(0.75 0.16 55 / 40%);
+    box-shadow: 0 0 15px oklch(0.78 0.18 52 / 45%);
   }
   .border-glow {
-    border-color: oklch(0.65 0.20 250 / 60%);
+    border-color: oklch(0.68 0.18 255 / 55%);
   }
   .text-glow {
-    text-shadow: 0 0 20px oklch(0.65 0.20 250 / 50%), 0 0 40px oklch(0.55 0.15 280 / 25%);
+    text-shadow: 0 0 15px oklch(0.68 0.18 255 / 45%), 0 0 30px oklch(0.58 0.16 285 / 20%);
   }
-  /* Card premium style */
+  /* Card premium style - refined */
   .card-premium {
-    background: linear-gradient(135deg, oklch(0.17 0.035 245) 0%, oklch(0.14 0.03 250) 100%);
-    border: 1px solid oklch(0.35 0.04 245);
-    box-shadow: 0 4px 20px oklch(0 0 0 / 30%), 0 0 40px oklch(0.65 0.20 250 / 5%);
+    background: linear-gradient(145deg, oklch(0.16 0.04 250) 0%, oklch(0.12 0.035 252) 100%);
+    border: 1px solid oklch(0.30 0.05 250);
+    box-shadow: 0 4px 24px oklch(0 0 0 / 35%), 0 0 30px oklch(0.68 0.18 255 / 4%);
   }
   .card-premium-hover:hover {
-    border-color: oklch(0.45 0.06 250);
-    box-shadow: 0 4px 25px oklch(0 0 0 / 35%), 0 0 50px oklch(0.65 0.20 250 / 10%);
+    border-color: oklch(0.40 0.07 252);
+    box-shadow: 0 6px 30px oklch(0 0 0 / 40%), 0 0 45px oklch(0.68 0.18 255 / 8%);
+  }
+  /* Ambient background glow */
+  .ambient-glow {
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, oklch(0.68 0.18 255 / 3%) 0%, transparent 60%);
+  }
+  .ambient-glow-strong {
+    background: radial-gradient(ellipse 70% 50% at 50% 45%, oklch(0.68 0.18 255 / 5%) 0%, transparent 55%);
   }
 
-  /* ===== JARVIS CORE ANIMATIONS - More Elegant ===== */
+  /* ===== JARVIS CORE ANIMATIONS - Refined Elegance ===== */
   .jarvis-breathe {
-    animation: jarvis-breathe 4s ease-in-out infinite;
+    animation: jarvis-breathe 5s ease-in-out infinite;
   }
   @keyframes jarvis-breathe {
     0%, 100% { 
       transform: scale(1);
       box-shadow: 
-        0 0 60px oklch(0.65 0.20 250 / 30%),
-        0 0 120px oklch(0.65 0.20 250 / 15%),
-        0 0 180px oklch(0.55 0.15 280 / 8%),
-        inset 0 0 60px oklch(0.65 0.20 250 / 10%);
+        0 0 50px oklch(0.68 0.18 255 / 25%),
+        0 0 100px oklch(0.68 0.18 255 / 12%),
+        0 0 150px oklch(0.58 0.16 285 / 6%),
+        inset 0 0 50px oklch(0.68 0.18 255 / 8%);
     }
     50% { 
-      transform: scale(1.015);
+      transform: scale(1.012);
       box-shadow: 
-        0 0 80px oklch(0.65 0.20 250 / 38%),
-        0 0 160px oklch(0.65 0.20 250 / 20%),
-        0 0 240px oklch(0.55 0.15 280 / 10%),
-        inset 0 0 80px oklch(0.65 0.20 250 / 15%);
+        0 0 65px oklch(0.68 0.18 255 / 32%),
+        0 0 130px oklch(0.68 0.18 255 / 16%),
+        0 0 180px oklch(0.58 0.16 285 / 8%),
+        inset 0 0 65px oklch(0.68 0.18 255 / 12%);
     }
   }
   .jarvis-processing {
-    animation: jarvis-processing 2s ease-in-out infinite;
+    animation: jarvis-processing 2.5s ease-in-out infinite;
   }
   @keyframes jarvis-processing {
     0%, 100% { 
       transform: scale(1);
       box-shadow: 
-        0 0 80px oklch(0.65 0.20 250 / 40%),
-        0 0 160px oklch(0.65 0.20 250 / 25%),
-        0 0 240px oklch(0.55 0.15 280 / 12%),
-        inset 0 0 80px oklch(0.65 0.20 250 / 20%);
+        0 0 60px oklch(0.68 0.18 255 / 35%),
+        0 0 120px oklch(0.68 0.18 255 / 18%),
+        0 0 180px oklch(0.58 0.16 285 / 10%),
+        inset 0 0 60px oklch(0.68 0.18 255 / 15%);
     }
     50% { 
-      transform: scale(1.03);
+      transform: scale(1.025);
       box-shadow: 
-        0 0 100px oklch(0.65 0.20 250 / 50%),
-        0 0 200px oklch(0.65 0.20 250 / 30%),
-        0 0 300px oklch(0.55 0.15 280 / 15%),
-        inset 0 0 100px oklch(0.65 0.20 250 / 25%);
+        0 0 80px oklch(0.68 0.18 255 / 45%),
+        0 0 160px oklch(0.68 0.18 255 / 25%),
+        0 0 220px oklch(0.58 0.16 285 / 12%),
+        inset 0 0 80px oklch(0.68 0.18 255 / 20%);
     }
   }
 

@@ -35,15 +35,15 @@ const simulations: Simulation[] = [
 
 export function SimulatorPanel({ onSimulate, disabled }: SimulatorPanelProps) {
   return (
-    <div className="flex flex-col gap-5 p-6 bg-gradient-to-br from-card to-secondary/50 rounded-2xl border border-border h-full">
+    <div className="flex flex-col gap-4 p-5 bg-card/60 rounded-xl border border-border/50 h-full">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/15">
-          <Zap className="w-4 h-4 text-primary" />
+        <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+          <Zap className="w-3.5 h-3.5 text-primary" />
         </div>
-        <span className="text-sm font-semibold text-foreground">Simular</span>
+        <span className="text-sm font-semibold text-foreground/90">Simular</span>
       </div>
       
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2.5">
         {simulations.map((sim) => (
           <Button
             key={sim.id}
@@ -52,14 +52,14 @@ export function SimulatorPanel({ onSimulate, disabled }: SimulatorPanelProps) {
             disabled={disabled}
             onClick={() => onSimulate(sim)}
             className={cn(
-              "h-auto py-4 px-4 flex flex-col items-center gap-2.5",
-              "bg-secondary/50 border-border hover:border-primary/60 hover:bg-primary/10",
-              "transition-all duration-200 rounded-xl",
+              "h-auto py-3.5 px-3 flex flex-col items-center gap-2",
+              "bg-secondary/40 border-border/50 hover:border-primary/40 hover:bg-primary/5",
+              "transition-all duration-200 rounded-lg",
               disabled && "opacity-50"
             )}
           >
-            <span className="text-primary">{sim.icon}</span>
-            <span className="text-xs font-medium text-foreground">{sim.label}</span>
+            <span className="text-primary/80">{sim.icon}</span>
+            <span className="text-[11px] font-medium text-foreground/80">{sim.label}</span>
           </Button>
         ))}
       </div>

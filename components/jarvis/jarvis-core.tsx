@@ -39,78 +39,78 @@ export function JarvisCore({ state, statusText, activeModule }: JarvisCoreProps)
 
   return (
     <div className="relative flex items-center justify-center">
-      {/* Outer orbital rings - elegant glow */}
-      <div className="absolute w-[520px] h-[520px] rounded-full border border-primary/15 orbit-ring-slow" />
-      <div className="absolute w-[460px] h-[460px] rounded-full border border-primary/20 orbit-ring-reverse" />
-      <div className="absolute w-[400px] h-[400px] rounded-full border border-primary/25 orbit-ring" />
+      {/* Outer orbital rings - refined elegance */}
+      <div className="absolute w-[500px] h-[500px] rounded-full border border-primary/10 orbit-ring-slow" />
+      <div className="absolute w-[440px] h-[440px] rounded-full border border-primary/15 orbit-ring-reverse" />
+      <div className="absolute w-[380px] h-[380px] rounded-full border border-primary/20 orbit-ring" />
       
-      {/* Energy particles on orbits */}
-      <div className="absolute w-[520px] h-[520px] orbit-ring-slow">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-primary/70 rounded-full particle-pulse glow-blue-sm" />
+      {/* Energy particles on orbits - more refined */}
+      <div className="absolute w-[500px] h-[500px] orbit-ring-slow">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary rounded-full particle-pulse glow-blue-sm" />
       </div>
-      <div className="absolute w-[460px] h-[460px] orbit-ring-reverse">
-        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-2 h-2 bg-chart-5/60 rounded-full particle-pulse" style={{ animationDelay: "0.5s" }} />
+      <div className="absolute w-[440px] h-[440px] orbit-ring-reverse">
+        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-1.5 h-1.5 bg-chart-5/80 rounded-full particle-pulse" style={{ animationDelay: "0.7s" }} />
       </div>
-      <div className="absolute w-[400px] h-[400px] orbit-ring">
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary/60 rounded-full particle-pulse" style={{ animationDelay: "1s" }} />
+      <div className="absolute w-[380px] h-[380px] orbit-ring">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-primary/80 rounded-full particle-pulse" style={{ animationDelay: "1.4s" }} />
       </div>
 
-      {/* Inner glow gradient ring */}
+      {/* Inner glow gradient ring - softer */}
       <div className={cn(
-        "absolute w-[340px] h-[340px] rounded-full",
-        "bg-gradient-to-br from-primary/20 via-chart-5/10 to-primary/15",
+        "absolute w-[320px] h-[320px] rounded-full",
+        "bg-gradient-to-br from-primary/12 via-chart-5/6 to-primary/10",
         isProcessing ? "orbit-ring-fast" : "orbit-ring-slow"
       )} />
 
-      {/* Core orb - premium card style */}
+      {/* Core orb - premium refined style */}
       <div className={cn(
-        "relative w-[280px] h-[280px] rounded-full",
-        "bg-gradient-to-br from-card via-secondary to-card",
-        "border border-primary/40",
+        "relative w-[260px] h-[260px] rounded-full",
+        "bg-gradient-to-br from-card via-secondary/80 to-card",
+        "border border-primary/30",
         "flex flex-col items-center justify-center",
         config.animation
       )}>
-        {/* Inner gradient overlay - more depth */}
-        <div className="absolute inset-4 rounded-full bg-gradient-to-br from-primary/8 via-transparent to-chart-5/10" />
+        {/* Inner gradient overlay - subtle depth */}
+        <div className="absolute inset-3 rounded-full bg-gradient-to-br from-primary/5 via-transparent to-chart-5/5" />
         
         {/* Scanning line effect when processing */}
         {isProcessing && (
           <div className="absolute inset-0 rounded-full overflow-hidden">
             <div 
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent scanning"
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/15 to-transparent scanning"
               style={{ backgroundSize: "200% 100%" }}
             />
           </div>
         )}
 
-        {/* Core content */}
+        {/* Core content - refined typography */}
         <div className="relative z-10 text-center px-8">
-          <div className={cn("text-sm font-semibold tracking-[0.35em] mb-3", config.color)}>
+          <div className={cn("text-[13px] font-bold tracking-[0.3em] mb-3", config.color)}>
             {config.label}
           </div>
-          <div className="text-sm text-foreground/70 max-w-[200px] leading-relaxed">
+          <div className="text-[13px] text-foreground/75 max-w-[180px] leading-relaxed">
             {statusText}
           </div>
           {activeModule && (
-            <div className="mt-4 text-xs font-mono text-primary tracking-wider">
+            <div className="mt-4 text-[11px] font-mono text-primary/90 tracking-widest">
               [{activeModule.toUpperCase()}]
             </div>
           )}
         </div>
 
-        {/* Corner accents - more visible */}
-        <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-primary/50 rounded-tl-xl" />
-        <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-primary/50 rounded-tr-xl" />
-        <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-primary/50 rounded-bl-xl" />
-        <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-primary/50 rounded-br-xl" />
+        {/* Corner accents - refined */}
+        <div className="absolute top-5 left-5 w-6 h-6 border-t-[1.5px] border-l-[1.5px] border-primary/40 rounded-tl-lg" />
+        <div className="absolute top-5 right-5 w-6 h-6 border-t-[1.5px] border-r-[1.5px] border-primary/40 rounded-tr-lg" />
+        <div className="absolute bottom-5 left-5 w-6 h-6 border-b-[1.5px] border-l-[1.5px] border-primary/40 rounded-bl-lg" />
+        <div className="absolute bottom-5 right-5 w-6 h-6 border-b-[1.5px] border-r-[1.5px] border-primary/40 rounded-br-lg" />
       </div>
 
-      {/* Title below core */}
-      <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 text-center">
-        <h1 className="text-xl font-bold tracking-[0.25em] text-primary text-glow">
+      {/* Title below core - refined */}
+      <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 text-center">
+        <h1 className="text-lg font-bold tracking-[0.2em] text-primary text-glow">
           JARVIS
         </h1>
-        <p className="text-xs text-muted-foreground tracking-[0.15em] mt-2">
+        <p className="text-[10px] text-muted-foreground/80 tracking-[0.15em] mt-1.5 font-medium">
           CENTRAL PLAY
         </p>
       </div>

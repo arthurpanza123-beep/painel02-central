@@ -22,19 +22,19 @@ const statusConfig: Record<ActionEntry["status"], { icon: React.ReactNode; color
 
 export function ActionsPanel({ actions }: ActionsPanelProps) {
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-card/50 to-background">
-      {/* Header - premium style */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-border bg-card/30">
-        <div className="p-2 rounded-lg bg-chart-2/15">
-          <ArrowRight className="w-4 h-4 text-chart-2" />
+    <div className="flex flex-col h-full">
+      {/* Header - refined lighter */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border/40 bg-card/20">
+        <div className="p-2 rounded-lg bg-chart-2/10 border border-chart-2/20">
+          <ArrowRight className="w-3.5 h-3.5 text-chart-2" />
         </div>
-        <span className="text-sm font-semibold tracking-wide text-foreground">Ações</span>
+        <span className="text-sm font-semibold text-foreground/90">Ações</span>
       </div>
 
-      {/* Actions list - premium cards */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      {/* Actions list - lighter cards, better hierarchy */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {actions.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">
+          <div className="text-center py-16 text-muted-foreground/60 text-sm">
             Nenhuma ação...
           </div>
         ) : (
@@ -44,19 +44,20 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
               <div
                 key={action.id}
                 className={cn(
-                  "p-4 rounded-xl bg-gradient-to-br from-card to-secondary/30 border border-border/80 border-l-3 flow-in-right",
-                  action.status === "completed" ? "border-l-chart-2" : 
-                  action.status === "executing" ? "border-l-primary" : "border-l-muted-foreground"
+                  "p-3.5 rounded-xl bg-card/60 border border-border/50 border-l-2 flow-in-right",
+                  "hover:bg-card/80 transition-colors",
+                  action.status === "completed" ? "border-l-chart-2/80" : 
+                  action.status === "executing" ? "border-l-primary/80" : "border-l-muted-foreground/40"
                 )}
                 style={{ animationDelay: `${Math.min(index, 5) * 0.05}s` }}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={config.color}>{config.icon}</span>
-                  <span className={cn("text-[10px] font-semibold", config.color)}>
-                    {action.status === "completed" ? "OK" : "..."}
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={cn("opacity-80", config.color)}>{config.icon}</span>
+                  <span className={cn("text-[10px] font-semibold uppercase tracking-wide", config.color)}>
+                    {action.status === "completed" ? "Concluído" : action.status === "executing" ? "Executando" : "Pendente"}
                   </span>
                 </div>
-                <div className="text-sm text-foreground leading-relaxed">
+                <div className="text-[13px] text-foreground/90 leading-relaxed">
                   {action.text}
                 </div>
               </div>
@@ -65,10 +66,10 @@ export function ActionsPanel({ actions }: ActionsPanelProps) {
         )}
       </div>
 
-      {/* Data stream indicator */}
-      <div className="h-1 bg-gradient-to-r from-transparent via-border to-transparent overflow-hidden">
+      {/* Data stream indicator - subtle */}
+      <div className="h-px bg-border/30 overflow-hidden">
         <div 
-          className="h-full w-1/3 bg-gradient-to-r from-transparent via-chart-2/50 to-transparent data-stream-right"
+          className="h-full w-1/4 bg-gradient-to-r from-transparent via-chart-2/40 to-transparent data-stream-right"
         />
       </div>
     </div>

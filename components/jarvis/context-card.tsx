@@ -19,14 +19,14 @@ interface ContextCardProps {
 export function ContextCard({ context }: ContextCardProps) {
   if (!context) {
     return (
-      <div className="p-6 bg-gradient-to-br from-card to-secondary/50 rounded-2xl border border-border h-full">
+      <div className="p-5 bg-card/60 rounded-xl border border-border/50 h-full">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-secondary/80">
-            <User className="w-4 h-4 text-muted-foreground" />
+          <div className="p-2 rounded-lg bg-secondary/60">
+            <User className="w-3.5 h-3.5 text-muted-foreground/60" />
           </div>
-          <span className="text-sm font-semibold text-muted-foreground">Contexto</span>
+          <span className="text-sm font-semibold text-muted-foreground/70">Contexto</span>
         </div>
-        <p className="text-sm text-muted-foreground text-center py-6">
+        <p className="text-sm text-muted-foreground/50 text-center py-8">
           —
         </p>
       </div>
@@ -34,26 +34,26 @@ export function ContextCard({ context }: ContextCardProps) {
   }
 
   return (
-    <div className="p-6 bg-gradient-to-br from-card to-secondary/50 rounded-2xl border border-border h-full">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="p-2 rounded-lg bg-primary/15">
-          <User className="w-4 h-4 text-primary" />
+    <div className="p-5 bg-card/60 rounded-xl border border-border/50 h-full">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+          <User className="w-3.5 h-3.5 text-primary" />
         </div>
-        <span className="text-sm font-semibold text-foreground">Contexto</span>
+        <span className="text-sm font-semibold text-foreground/90">Contexto</span>
       </div>
       
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         <div>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Cliente</span>
-          <p className="text-sm text-foreground mt-1">{context.name}</p>
+          <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">Cliente</span>
+          <p className="text-[13px] text-foreground/90 mt-0.5">{context.name}</p>
         </div>
         <div>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Aparelho</span>
-          <p className="text-sm text-foreground mt-1">{context.device}</p>
+          <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">Aparelho</span>
+          <p className="text-[13px] text-foreground/90 mt-0.5">{context.device}</p>
         </div>
         <div>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Fluxo</span>
-          <p className="text-sm text-primary font-medium mt-1">{context.currentFlow}</p>
+          <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">Fluxo</span>
+          <p className="text-[13px] text-primary font-medium mt-0.5">{context.currentFlow}</p>
         </div>
       </div>
     </div>
