@@ -263,14 +263,26 @@ export default function JarvisPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
-      {/* Background texture */}
+      {/* Premium metallic background with multiple layers */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/[0.03] via-transparent to-transparent" />
-        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E\")" }} />
+        {/* Base metallic gradient */}
+        <div className="absolute inset-0 bg-metallic-dark" />
+        {/* Hex grid pattern overlay */}
+        <div className="absolute inset-0 bg-hex-grid opacity-60" />
+        {/* Brushed metal texture */}
+        <div className="absolute inset-0 brushed-metal" />
+        {/* Ambient glow from center */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_40%,_oklch(0.68_0.22_255_/_6%)_0%,_transparent_60%)]" />
+        {/* Top light reflection */}
+        <div className="absolute inset-x-0 top-0 h-[400px] bg-gradient-to-b from-primary/[0.04] to-transparent" />
+        {/* Vignette effect */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_50%,_transparent_30%,_oklch(0_0_0_/_50%)_100%)]" />
+        {/* Shimmer overlay */}
+        <div className="absolute inset-0 shimmer opacity-30" />
       </div>
 
       {/* Sidebar */}
-      <aside className="w-[200px] border-r border-border/30 bg-gradient-to-b from-card/50 to-background flex flex-col relative z-10">
+      <aside className="w-[200px] border-r border-border/20 bg-gradient-to-b from-card/40 via-card/20 to-transparent backdrop-blur-sm flex flex-col relative z-10">
         <nav className="flex-1 p-3 space-y-1 pt-6">
           {sidebarItems.map((item) => {
             const Icon = item.icon
