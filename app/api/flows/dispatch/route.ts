@@ -23,9 +23,13 @@ export async function POST(request: Request) {
   const context: MessageContext = {
     ...(body.context || {}),
     phone: body.phone || body.client?.phone || body.context?.phone,
+    id: String(test.id || body.context?.id || ''),
+    testId: String(test.id || body.context?.testId || body.context?.test_id || ''),
     clientName: body.client?.name || body.context?.clientName,
     app: String(test.app || activation.app || body.context?.app || ''),
     panel: String(test.panel || activation.panel || body.context?.panel || ''),
+    pedido: String(test.pedido || test.order_id || test.orderId || body.context?.pedido || body.context?.order_id || body.context?.orderId || ''),
+    orderId: String(test.order_id || test.orderId || body.context?.orderId || body.context?.order_id || ''),
     host: String(test.host || body.context?.host || ''),
     username: String(test.username || body.context?.username || ''),
     password: String(test.password || body.context?.password || ''),

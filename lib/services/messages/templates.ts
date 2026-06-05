@@ -12,9 +12,17 @@ export type FlowKey =
 
 export interface MessageContext {
   phone?: string
+  id?: string
+  testId?: string
+  test_id?: string
   cliente?: string
   clientName?: string
   app?: string
+  pedido?: string
+  orderId?: string
+  order_id?: string
+  providerOrderId?: string
+  provider_order_id?: string
   codigo?: string
   code?: string
   usuario?: string
@@ -35,6 +43,18 @@ export interface MessageContext {
   dueAt?: string
 }
 
+export interface FlowMediaMessage {
+  kind: 'media'
+  mediaUrl: string
+  caption: string
+  type: 'image'
+  mimetype: string
+  fileName: string
+  context: Record<string, unknown>
+}
+
+export type FlowMessage = string | FlowMediaMessage
+
 function pick(...values: Array<unknown>): string {
   for (const value of values) {
     const text = String(value || '').trim()
@@ -48,9 +68,62 @@ function optional(label: string, value: unknown): string | null {
   return text ? `${label}: ${text}` : null
 }
 
+function isXcloudApp(value: unknown): boolean {
+  return /x\s*cloud|xcloud/i.test(pick(value))
+}
+
+function shortTestPedido(ctx: MessageContext): string {
+  const order = pick(ctx.pedido, ctx.orderId, ctx.order_id, ctx.providerOrderId, ctx.provider_order_id)
+  if (order && !/^null$/i.test(order)) return order.startsWith('#') ? order : `#${order}`
+
+  const id = pick(ctx.testId, ctx.test_id, ctx.id)
+  const safe = id.replace(/[^a-z0-9]/gi, '').slice(0, 4).toUpperCase()
+  if (safe) return `#${safe}`
+  return 'teste ativo'
+}
+
+export const TEST_VALUES_IMAGE_URL = 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/c94afca7-0531-4e2a-bb30-f171a87b6bf5.png'
+
+export function buildXcloudTestCreatedMedia(ctx: MessageContext = {}): FlowMediaMessage {
+  const clientName = pick(ctx.cliente, ctx.clientName, 'Cliente')
+  const pedido = shortTestPedido(ctx)
+  const caption = [
+    'Teste ativado com sucesso!',
+    '',
+    `Cliente: ${clientName}`,
+    `Pedido: ${pedido}`,
+    '',
+    'Abra o app e clique em RELOAD ou RECARREGAR.',
+    '',
+    'Gostando da qualidade, é só escolher um dos planos acima que eu renovo no mesmo login, sem precisar configurar tudo de novo.',
+    '',
+    'Qual plano você vai querer ativar depois do teste? 🍿',
+  ].join('\n')
+
+  return {
+    kind: 'media',
+    mediaUrl: TEST_VALUES_IMAGE_URL,
+    caption,
+    type: 'image',
+    mimetype: 'image/png',
+    fileName: 'valores-central-play-plus.png',
+    context: {
+      flow: 'test_created',
+      app: pick(ctx.app, 'XCloud'),
+      clientName,
+      pedido,
+      test_id: pick(ctx.testId, ctx.test_id, ctx.id) || undefined,
+      source: pick((ctx as Record<string, unknown>).source) || undefined,
+      operator_ref: pick((ctx as Record<string, unknown>).operator_ref) || undefined,
+    },
+  }
+}
+
 export function buildTestCreatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
-  const isXcloud = /x\s*cloud|xcloud/i.test(app)
+  const isXcloud = isXcloudApp(app)
+  if (isXcloud) return buildXcloudTestCreatedMedia(ctx)
+
   return [
     'Teste ativado com sucesso!',
     '',
@@ -61,9 +134,7 @@ export function buildTestCreatedMessage(ctx: MessageContext = {}) {
     optional('Senha', pick(ctx.senha, ctx.password)),
     optional('Host/DNS', pick(ctx.host, ctx.dns)),
     '',
-    isXcloud
-      ? 'Abra o aplicativo e clique em RELOAD ou RECARREGAR para carregar a lista.'
-      : 'Abra o aplicativo e entre com os dados acima.',
+    'Abra o aplicativo e entre com os dados acima.',
   ].filter(Boolean).join('\n')
 }
 
@@ -219,7 +290,7 @@ export function buildProblemMessage(ctx: MessageContext = {}) {
   ].filter(Boolean).join('\n')
 }
 
-export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}) {
+export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}): FlowMessage {
   switch (flow) {
     case 'test_created': return buildTestCreatedMessage(ctx)
     case 'test_expired': return buildTestExpiredOperatorMessage(ctx)
