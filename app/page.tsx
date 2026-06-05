@@ -16,6 +16,15 @@ type JarvisState = "idle" | "receiving" | "interpreting" | "detecting" | "prepar
 type LogEntry = { id: string; timestamp: Date; level: "info" | "success" | "warning" | "error"; code: string; detail?: string }
 type QueueItem = { id: string; simId: string; label: string; addedAt: Date; status: "queued" | "processing" | "completed" | "failed" }
 type FailureEntry = { id: string; timestamp: Date; code: string; message: string; resolved: boolean }
+type EvolutionUiResult = {
+  ok?: boolean
+  code?: string
+  message?: string
+  dryRun?: boolean
+  preview?: string
+  flags?: { enabled?: boolean; dryRun?: boolean; configured?: boolean }
+  logs?: Array<{ code?: string; message?: string }>
+}
 
 type FlowConfig = {
   module: string
@@ -371,6 +380,10 @@ function JarvisPageContent() {
   const [failures, setFailures] = useState<FailureEntry[]>([])
   const [processedCount, setProcessedCount] = useState(0)
   const [history, setHistory] = useState<{ id: string; label: string; module: string; time: Date; success: boolean }[]>([])
+  const [evolutionResult, setEvolutionResult] = useState<EvolutionUiResult | null>(null)
+  const [evolutionLoading, setEvolutionLoading] = useState(false)
+  const [evolutionPhone, setEvolutionPhone] = useState("")
+  const [evolutionFlow, setEvolutionFlow] = useState("test_created")
 
   // Add log
   const addLog = useCallback((level: LogEntry["level"], code: string, detail?: string) => {
@@ -476,6 +489,49 @@ function JarvisPageContent() {
     setQueue(prev => [...prev, newItem])
     addLog("info", "QUEUE_ADD", `${label} adicionado a fila`)
   }, [addLog])
+
+  const callEvolutionEndpoint = useCallback(async (path: string, payload?: Record<string, unknown>) => {
+    setEvolutionLoading(true)
+    try {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      })
+      const data = await res.json().catch(() => ({ ok: false, code: "INVALID_RESPONSE", message: "Resposta invalida" }))
+      setEvolutionResult(data)
+      addLog(res.ok ? "success" : "warning", data.code || "EVOLUTION_RESULT", data.message || "Endpoint Evolution respondeu")
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setEvolutionResult({ ok: false, code: "REQUEST_FAILED", message })
+      addLog("error", "REQUEST_FAILED", message)
+    } finally {
+      setEvolutionLoading(false)
+    }
+  }, [addLog])
+
+  const handleTestEvolution = useCallback(() => {
+    callEvolutionEndpoint("/api/evolution/test-connection")
+  }, [callEvolutionEndpoint])
+
+  const handleDryRunSend = useCallback(() => {
+    const sim = simulations.find((item) => item.id === evolutionFlow)
+    if (sim) handleSimulate(sim.id, sim.label)
+    callEvolutionEndpoint("/api/flows/dispatch", {
+      flow: evolutionFlow,
+      phone: evolutionPhone,
+      context: {
+        cliente: "Cliente Teste",
+        app: evolutionFlow.includes("xcloud") ? "XCloud TV" : "Central Play Plus",
+        usuario: "usuario.demo",
+        senha: "senha.demo",
+        codigo: "00112",
+        painel: "Painel 2",
+        device: "LG",
+        link: "https://painel.centralplayplus.com.br",
+      },
+    })
+  }, [callEvolutionEndpoint, evolutionFlow, evolutionPhone, handleSimulate])
 
   useEffect(() => {
     if (hydratedFromQuery.current) return
@@ -863,6 +919,102 @@ function JarvisPageContent() {
               {/* Bottom section */}
               <div className="border-t border-border/20 bg-card/20 backdrop-blur-sm p-6">
                 <div className="max-w-[1200px] mx-auto grid grid-cols-12 gap-6">
+                  {/* Evolution safe controls */}
+                  <div className="col-span-12">
+                    <div className="rounded-2xl border border-primary/15 bg-card/35 p-4">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <MessageSquare className="h-4 w-4 text-primary/70" />
+                            <span className="text-xs font-semibold tracking-wider text-muted-foreground/70">EVOLUTION / WHATSAPP</span>
+                            <span
+                              className={cn(
+                                "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
+                                evolutionResult?.flags?.enabled && !evolutionResult?.flags?.dryRun
+                                  ? "border-chart-2/30 bg-chart-2/10 text-chart-2"
+                                  : "border-chart-3/30 bg-chart-3/10 text-chart-3"
+                              )}
+                            >
+                              {evolutionResult?.flags?.enabled && !evolutionResult?.flags?.dryRun
+                                ? "Real ativo"
+                                : evolutionResult?.flags?.dryRun === false
+                                  ? "Real desativado"
+                                  : "Dry-run"}
+                            </span>
+                          </div>
+                          <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground/70">
+                            Base de envio real preparada com feature flag. Com dry-run ativo, os botoes apenas validam payload,
+                            geram preview e registram logs locais.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleTestEvolution}
+                            disabled={evolutionLoading}
+                            className="h-9 gap-2 bg-card/50 border-border/30"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Testar conexao Evolution
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDryRunSend}
+                            disabled={evolutionLoading}
+                            className="h-9 gap-2 bg-primary/10 border-primary/25 text-primary"
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                            Simular envio
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 lg:grid-cols-[180px_220px_1fr]">
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Fluxo</span>
+                          <select
+                            value={evolutionFlow}
+                            onChange={(event) => setEvolutionFlow(event.target.value)}
+                            className="h-9 w-full rounded-lg border border-border/30 bg-background/50 px-3 text-xs text-foreground outline-none"
+                          >
+                            {["test_created", "test_expired", "renewal_created", "install_requested", "app_swap", "second_screen", "problem_created"].map((flow) => (
+                              <option key={flow} value={flow}>{flow}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Telefone de teste</span>
+                          <input
+                            value={evolutionPhone}
+                            onChange={(event) => setEvolutionPhone(event.target.value)}
+                            placeholder="Use OPERATOR_WHATSAPP no teste real"
+                            className="h-9 w-full rounded-lg border border-border/30 bg-background/50 px-3 text-xs text-foreground outline-none placeholder:text-muted-foreground/40"
+                          />
+                        </label>
+                        <div className="rounded-xl border border-border/20 bg-[#080c14] p-3 font-mono text-[11px]">
+                          <div className="mb-2 flex items-center gap-2 text-muted-foreground/50">
+                            <Terminal className="h-3.5 w-3.5" />
+                            resultado
+                          </div>
+                          {evolutionResult ? (
+                            <div className="space-y-1 text-foreground/80">
+                              <p>{evolutionResult.code || "RESULT"} · {evolutionResult.message || "-"}</p>
+                              {evolutionResult.preview && <p className="line-clamp-2 text-primary/80">{evolutionResult.preview}</p>}
+                              {evolutionResult.logs?.slice(0, 2).map((entry, index) => (
+                                <p key={`${entry.code}-${index}`} className="text-muted-foreground/60">{entry.code}: {entry.message}</p>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground/35">Aguardando teste...</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Simulator */}
                   <div className="col-span-8">
                     <div className="flex items-center gap-2 mb-4">
