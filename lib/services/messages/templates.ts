@@ -47,10 +47,11 @@ export interface FlowMediaMessage {
   kind: 'media'
   mediaUrl: string
   caption: string
-  type: 'image'
+  type: 'image' | 'sticker'
   mimetype: string
   fileName: string
   context: Record<string, unknown>
+  fallbackText?: string
 }
 
 export type FlowMessage = string | FlowMediaMessage
@@ -83,6 +84,7 @@ function shortTestPedido(ctx: MessageContext): string {
 }
 
 export const TEST_VALUES_IMAGE_URL = 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/c94afca7-0531-4e2a-bb30-f171a87b6bf5.png'
+export const TEST_EXPIRED_STICKER_URL = process.env.TEST_EXPIRED_STICKER_URL || 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/figu.webp'
 
 export function buildXcloudTestCreatedMedia(ctx: MessageContext = {}): FlowMediaMessage {
   const clientName = pick(ctx.cliente, ctx.clientName, 'Cliente')
@@ -147,6 +149,34 @@ export function buildTestExpiredOperatorMessage(ctx: MessageContext = {}) {
   ].filter(Boolean).join('\n')
 }
 
+export function buildTestExpiredCustomerMessage(ctx: MessageContext = {}): FlowMediaMessage | string {
+  const clientName = pick(ctx.cliente, ctx.clientName, 'cliente')
+  const fallbackText = [
+    `Teste encerrado: ${clientName}`,
+    '',
+    'Seu teste terminou. Se gostou da qualidade, me chama aqui que eu ativo um plano no mesmo atendimento.',
+  ].join('\n')
+
+  if (!TEST_EXPIRED_STICKER_URL) return fallbackText
+
+  return {
+    kind: 'media',
+    mediaUrl: TEST_EXPIRED_STICKER_URL,
+    caption: '',
+    type: 'sticker',
+    mimetype: 'image/webp',
+    fileName: 'teste-encerrado.webp',
+    fallbackText,
+    context: {
+      flow: 'test_expired',
+      app: pick(ctx.app) || undefined,
+      clientName,
+      test_id: pick(ctx.testId, ctx.test_id, ctx.id) || undefined,
+      mediaKind: 'sticker',
+    },
+  }
+}
+
 export function buildRenewalMessage(ctx: MessageContext = {}) {
   return [
     `Ola, ${pick(ctx.cliente, ctx.clientName, 'cliente')}.`,
@@ -160,7 +190,9 @@ export function buildRenewalMessage(ctx: MessageContext = {}) {
 
 export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
   return [
-    `Acesso ativado: ${pick(ctx.cliente, ctx.clientName, 'cliente')}`,
+    'Acesso ativado com sucesso!',
+    '',
+    optional('Cliente', pick(ctx.cliente, ctx.clientName)),
     optional('App', ctx.app),
     optional('Plano', ctx.plan),
     optional('Valor', pick(ctx.valor, ctx.amount)),
@@ -293,7 +325,7 @@ export function buildProblemMessage(ctx: MessageContext = {}) {
 export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}): FlowMessage {
   switch (flow) {
     case 'test_created': return buildTestCreatedMessage(ctx)
-    case 'test_expired': return buildTestExpiredOperatorMessage(ctx)
+    case 'test_expired': return pick(ctx.phone) ? buildTestExpiredCustomerMessage(ctx) : buildTestExpiredOperatorMessage(ctx)
     case 'access_activated': return buildAccessActivatedMessage(ctx)
     case 'renewal_created': return buildRenewalMessage(ctx)
     case 'install_requested': return buildInstallMessage(ctx)

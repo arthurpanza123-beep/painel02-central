@@ -51,6 +51,14 @@ export interface SendMediaInput {
   dryRun?: boolean
 }
 
+export interface SendStickerInput {
+  phone: string
+  stickerUrl?: string
+  stickerPath?: string
+  context?: Record<string, unknown>
+  dryRun?: boolean
+}
+
 export interface SendAudioInput {
   phone: string
   audioUrl?: string

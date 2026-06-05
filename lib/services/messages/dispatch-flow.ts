@@ -1,5 +1,6 @@
 import { getEvolutionConfig } from '../evolution/config'
 import { sendMedia } from '../evolution/send-media'
+import { sendSticker } from '../evolution/send-sticker'
 import { sendText } from '../evolution/send-text'
 import { buildFlowMessage, ALLOWED_FLOWS, type FlowKey, type MessageContext } from './templates'
 
@@ -30,6 +31,8 @@ export async function dispatchFlow(input: DispatchFlowInput) {
         caption: message.caption,
         flow: input.flow,
         app: message.context.app,
+        type: message.type,
+        fallbackText: message.fallbackText,
       }
 
   if (!phone) {
@@ -43,15 +46,31 @@ export async function dispatchFlow(input: DispatchFlowInput) {
   }
 
   if (typeof message !== 'string') {
-    const result = await sendMedia({
-      phone,
-      mediaUrl: message.mediaUrl,
-      caption: message.caption,
-      type: message.type,
-      mimetype: message.mimetype,
-      fileName: message.fileName,
-      context: message.context,
-    })
+    const result = message.type === 'sticker'
+      ? await sendSticker({
+          phone,
+          stickerUrl: message.mediaUrl,
+          context: message.context,
+        })
+      : await sendMedia({
+          phone,
+          mediaUrl: message.mediaUrl,
+          caption: message.caption,
+          type: message.type,
+          mimetype: message.mimetype,
+          fileName: message.fileName,
+          context: message.context,
+        })
+
+    if (!result.ok && !result.dryRun && message.fallbackText) {
+      const fallback = await sendText({
+        phone,
+        message: message.fallbackText,
+        context: safeDispatchContext({ flow: input.flow, fallbackFrom: message.type, ...context }),
+      })
+      return { ...fallback, mediaResult: result, preview }
+    }
+
     return { ...result, preview }
   }
 
