@@ -1,4 +1,5 @@
 import { buildInstallMessage as buildInstallTemplate } from './install-templates'
+import { buildProviderCredentials, type BuiltCredentials } from '@/lib/config/provider-catalog'
 
 export type FlowKey =
   | 'test_created'
@@ -31,6 +32,7 @@ export interface MessageContext {
   password?: string
   host?: string
   dns?: string
+  provider?: string
   painel?: string
   panel?: string
   link?: string
@@ -71,6 +73,59 @@ function optional(label: string, value: unknown): string | null {
 
 function isXcloudApp(value: unknown): boolean {
   return /x\s*cloud|xcloud/i.test(pick(value))
+}
+
+function isSmartTvApp(value: unknown): boolean {
+  return /smart\s*(stb|up)|stb|smart\s*tv/i.test(pick(value))
+}
+
+function catalogCredentials(ctx: MessageContext): BuiltCredentials | null {
+  const provider = pick(ctx.provider, ctx.painel, ctx.panel)
+  const app = pick(ctx.app)
+  if (!provider || !app) return null
+  try {
+    return buildProviderCredentials({
+      provider,
+      app,
+      username: pick(ctx.usuario, ctx.username),
+      password: pick(ctx.senha, ctx.password),
+      host: pick(ctx.host, ctx.dns),
+    })
+  } catch {
+    return null
+  }
+}
+
+function credentialHeader(credentials: BuiltCredentials | null, ctx: MessageContext): string {
+  if (credentials?.providerCode) return `Provider: ${credentials.providerCode}`
+  if (credentials?.code) return `Codigo: ${credentials.code}`
+  if (credentials?.dns) return `DNS: ${credentials.dns}`
+  const code = pick(ctx.codigo, ctx.code)
+  if (code) return `Codigo: ${code}`
+  const dns = pick(ctx.dns)
+  if (dns) return `DNS: ${dns}`
+  return ''
+}
+
+function credentialLines(ctx: MessageContext): string[] {
+  const credentials = catalogCredentials(ctx)
+  const header = credentialHeader(credentials, ctx)
+  return [
+    header || null,
+    optional('Usuario', pick(ctx.usuario, ctx.username, credentials?.username)),
+    optional('Senha', pick(ctx.senha, ctx.password, credentials?.password)),
+    credentials?.host ? `Host: ${credentials.host}` : null,
+  ].filter((line): line is string => Boolean(line))
+}
+
+function smartTvLines(ctx: MessageContext): string[] {
+  const credentials = catalogCredentials(ctx)
+  return [
+    optional('DNS Smart TV', pick(ctx.dns, credentials?.dns, credentials?.smartStbDns?.[0]?.value)),
+    optional('Usuario', pick(ctx.usuario, ctx.username, credentials?.username)),
+    optional('Senha', pick(ctx.senha, ctx.password, credentials?.password)),
+    pick(ctx.host, credentials?.host) ? ['', 'Se a TV pedir servidor/portal, use:', pick(ctx.host, credentials?.host)].join('\n') : null,
+  ].filter((line): line is string => Boolean(line))
 }
 
 function shortTestPedido(ctx: MessageContext): string {
@@ -125,16 +180,14 @@ export function buildTestCreatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
   const isXcloud = isXcloudApp(app)
   if (isXcloud) return buildXcloudTestCreatedMedia(ctx)
+  const credentials = credentialLines(ctx)
 
   return [
     'Teste ativado com sucesso!',
     '',
     optional('Cliente', pick(ctx.cliente, ctx.clientName)),
     optional('App', app),
-    optional('Codigo', pick(ctx.codigo, ctx.code)),
-    optional('Usuario', pick(ctx.usuario, ctx.username)),
-    optional('Senha', pick(ctx.senha, ctx.password)),
-    optional('Host/DNS', pick(ctx.host, ctx.dns)),
+    credentials.length ? ['Dados de acesso:', '', ...credentials].join('\n') : optional('Host/DNS', pick(ctx.host, ctx.dns)),
     '',
     'Abra o aplicativo e entre com os dados acima.',
   ].filter(Boolean).join('\n')
@@ -189,17 +242,56 @@ export function buildRenewalMessage(ctx: MessageContext = {}) {
 }
 
 export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
+  const app = pick(ctx.app, 'Aplicativo')
+  const isXcloud = isXcloudApp(app)
+  const isSmartTv = isSmartTvApp(app)
+  if (isXcloud) {
+    return [
+      'Acesso ativado com sucesso! ✅',
+      '',
+      optional('Cliente', pick(ctx.cliente, ctx.clientName)),
+      optional('Plano', ctx.plan),
+      optional('Validade', pick(ctx.vencimento, ctx.dueAt)),
+      '',
+      'Seu acesso já está liberado.',
+      '',
+      'Abra o XCloud e clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.',
+      '',
+      'Qualquer dúvida, me chama aqui que eu te ajudo. 🍿',
+    ].filter(Boolean).join('\n')
+  }
+
+  if (isSmartTv) {
+    return [
+      'Acesso ativado com sucesso! ✅',
+      '',
+      optional('Cliente', pick(ctx.cliente, ctx.clientName)),
+      optional('Plano', ctx.plan),
+      optional('Validade', pick(ctx.vencimento, ctx.dueAt)),
+      '',
+      'Dados de acesso:',
+      '',
+      ...smartTvLines(ctx),
+      '',
+      'Se precisar configurar a rede da TV, me envie uma foto da tela de configuração de rede.',
+    ].filter(Boolean).join('\n')
+  }
+
   return [
-    'Acesso ativado com sucesso!',
+    'Acesso ativado com sucesso! ✅',
     '',
     optional('Cliente', pick(ctx.cliente, ctx.clientName)),
-    optional('App', ctx.app),
+    optional('App', app),
     optional('Plano', ctx.plan),
-    optional('Valor', pick(ctx.valor, ctx.amount)),
-    optional('Vencimento', pick(ctx.vencimento, ctx.dueAt)),
-    optional('Painel', pick(ctx.painel, ctx.panel)),
+    optional('Validade', pick(ctx.vencimento, ctx.dueAt)),
     '',
-    'Cliente pago ativado. Confira credenciais e oriente o uso no aplicativo.',
+    'Dados de acesso:',
+    '',
+    ...credentialLines(ctx),
+    '',
+    'Abra o aplicativo, preencha os dados acima e aproveite.',
+    '',
+    'Qualquer dúvida, me chama aqui que eu te ajudo. 🍿',
   ].filter(Boolean).join('\n')
 }
 
@@ -295,18 +387,24 @@ export function buildInstallMessage(ctx: MessageContext = {}) {
 }
 
 export function buildAppSwapMessage(ctx: MessageContext = {}) {
+  const credentials = credentialLines(ctx)
   return [
     `Troca de aplicativo: ${pick(ctx.cliente, ctx.clientName, 'cliente')}`,
     optional('Novo app', ctx.app),
+    optional('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
+    credentials.length ? ['', 'Dados do novo app:', '', ...credentials].join('\n') : null,
     '',
     'Prepare o novo aplicativo e confirme com o cliente antes de orientar a troca.',
   ].filter(Boolean).join('\n')
 }
 
 export function buildSecondScreenMessage(ctx: MessageContext = {}) {
+  const credentials = isSmartTvApp(ctx.app) ? smartTvLines(ctx) : credentialLines(ctx)
   return [
     `Segunda tela solicitada: ${pick(ctx.cliente, ctx.clientName, 'cliente')}`,
     optional('App', ctx.app),
+    optional('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
+    credentials.length ? ['', 'Credencial que sera usada:', '', ...credentials].join('\n') : null,
     '',
     'Confirme disponibilidade de tela e dados antes de enviar qualquer orientacao ao cliente.',
   ].filter(Boolean).join('\n')
