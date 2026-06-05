@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { Suspense, useState, useCallback, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,14 +17,178 @@ type LogEntry = { id: string; timestamp: Date; level: "info" | "success" | "warn
 type QueueItem = { id: string; simId: string; label: string; addedAt: Date; status: "queued" | "processing" | "completed" | "failed" }
 type FailureEntry = { id: string; timestamp: Date; code: string; message: string; resolved: boolean }
 
-// Flow configurations
-const FLOWS: Record<string, { 
+type FlowConfig = {
   module: string
+  preview: string
   states: { state: JarvisState; text: string; duration: number }[]
   logs: { level: LogEntry["level"]; code: string; detail?: string }[]
-}> = {
+}
+
+function flow(module: string, preview: string, states: FlowConfig["states"], logs: FlowConfig["logs"]): FlowConfig {
+  return { module, preview, states, logs }
+}
+
+// Flow configurations. Todos os fluxos abaixo sao simulados: nao enviam WhatsApp e nao chamam Evolution.
+const FLOWS: Record<string, FlowConfig> = {
+  test_created: flow(
+    "Teste",
+    "Preview: teste criado, orientar instalacao e acompanhar 1h15 sem disparo real.",
+    [
+      { state: "receiving", text: "Recebendo teste criado", duration: 400 },
+      { state: "interpreting", text: "Lendo contexto do Painel 1", duration: 500 },
+      { state: "preparing", text: "Preparando preview de boas-vindas", duration: 600 },
+      { state: "completed", text: "Preview pronto", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "FLOW_TEST_CREATED", detail: "Evento recebido via simulador/query" },
+      { level: "info", code: "WHATSAPP_PREVIEW_ONLY", detail: "Nenhum envio real executado" },
+      { level: "success", code: "TEMPLATE_READY", detail: "Mensagem visual preparada" },
+    ],
+  ),
+  test_expired: flow(
+    "Teste expirado",
+    "Preview: aviso de expiracao, figurinha, entrar no painel e remover XCloud se aplicavel.",
+    [
+      { state: "receiving", text: "Teste expirado detectado", duration: 400 },
+      { state: "preparing", text: "Preparando aviso e figurinha", duration: 650 },
+      { state: "executing", text: "Montando acoes do operador", duration: 650 },
+      { state: "completed", text: "Checklist visual pronto", duration: 1800 },
+    ],
+    [
+      { level: "warning", code: "TEST_EXPIRED", detail: "Expiracao simulada" },
+      { level: "info", code: "STICKER_PREVIEW", detail: "Figurinha apenas em preview" },
+      { level: "info", code: "ACTION_ENTER_PANEL", detail: "Botao visual para entrar no painel" },
+      { level: "info", code: "ACTION_REMOVE_XCLOUD", detail: "Remocao XCloud somente simulada" },
+    ],
+  ),
+  renewal_created: flow(
+    "Renovacao",
+    "Preview: cobranca de renovacao com dados visuais e sem envio real.",
+    [
+      { state: "receiving", text: "Renovacao criada", duration: 400 },
+      { state: "interpreting", text: "Conferindo plano e vencimento", duration: 500 },
+      { state: "preparing", text: "Preparando cobranca visual", duration: 650 },
+      { state: "completed", text: "Preview de renovacao pronto", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "RENEWAL_CREATED", detail: "Renovacao adicionada ao console" },
+      { level: "info", code: "CHARGE_PREVIEW", detail: "Cobranca nao enviada" },
+      { level: "success", code: "OPERATOR_READY", detail: "Operador pode copiar manualmente" },
+    ],
+  ),
+  app_swap: flow(
+    "Troca de app",
+    "Preview: instrucoes de troca de aplicativo e midias sugeridas.",
+    [
+      { state: "receiving", text: "Pedido de troca recebido", duration: 400 },
+      { state: "detecting", text: "Identificando app atual", duration: 500 },
+      { state: "preparing", text: "Selecionando novo tutorial", duration: 650 },
+      { state: "completed", text: "Troca preparada", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "APP_SWAP", detail: "Fluxo visual de troca" },
+      { level: "info", code: "MEDIA_TEMPLATE_SELECTED", detail: "Midia sugerida, sem envio" },
+      { level: "success", code: "SWAP_PREVIEW_READY", detail: "Instrucoes prontas" },
+    ],
+  ),
+  second_screen: flow(
+    "Segunda tela",
+    "Preview: orientar segunda tela, limites e proximo passo de ativacao.",
+    [
+      { state: "receiving", text: "Solicitacao de segunda tela", duration: 400 },
+      { state: "interpreting", text: "Validando contexto visual", duration: 500 },
+      { state: "preparing", text: "Preparando orientacao", duration: 650 },
+      { state: "completed", text: "Preview de segunda tela pronto", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "SECOND_SCREEN", detail: "Pedido recebido" },
+      { level: "warning", code: "MANUAL_CONFIRMATION", detail: "Sem ativacao automatica" },
+      { level: "success", code: "GUIDE_READY", detail: "Orientacao visual pronta" },
+    ],
+  ),
+  problem_created: flow(
+    "Problema",
+    "Preview: problema criado, prompt de conhecimento e proximas acoes para suporte.",
+    [
+      { state: "receiving", text: "Problema recebido", duration: 400 },
+      { state: "interpreting", text: "Classificando ocorrencia", duration: 500 },
+      { state: "preparing", text: "Gerando prompt operacional", duration: 700 },
+      { state: "completed", text: "Prompt pronto", duration: 1800 },
+    ],
+    [
+      { level: "warning", code: "PROBLEM_CREATED", detail: "Ocorrencia registrada visualmente" },
+      { level: "info", code: "CODEX_PROMPT_READY", detail: "Prompt para suporte/Painel 2" },
+      { level: "success", code: "KNOWLEDGE_ATTACHED", detail: "Conhecimento sugerido" },
+    ],
+  ),
+  xcloud_remove_device: flow(
+    "XCloud",
+    "Preview: remover device XCloud com confirmacao manual do operador.",
+    [
+      { state: "receiving", text: "Remocao solicitada", duration: 400 },
+      { state: "detecting", text: "Localizando device", duration: 600 },
+      { state: "preparing", text: "Aguardando confirmacao manual", duration: 700 },
+      { state: "completed", text: "Remocao simulada pronta", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "XCLOUD_REMOVE_DEVICE", detail: "Nenhuma automacao real disparada" },
+      { level: "warning", code: "CONFIRMATION_REQUIRED", detail: "Operador decide no Painel 1/XCloud" },
+      { level: "success", code: "CHECKLIST_READY", detail: "Checklist visual pronto" },
+    ],
+  ),
+  xcloud_recreate_device: flow(
+    "XCloud",
+    "Preview: recriar device XCloud com localizar, desativar, excluir, recriar e confirmar RELOAD.",
+    [
+      { state: "receiving", text: "Recriacao solicitada", duration: 400 },
+      { state: "detecting", text: "Localizando device", duration: 600 },
+      { state: "executing", text: "Simulando desativacao", duration: 650 },
+      { state: "executing", text: "Simulando exclusao", duration: 650 },
+      { state: "preparing", text: "Preparando recriacao", duration: 700 },
+      { state: "validating", text: "Confirmando RELOAD visual", duration: 550 },
+      { state: "completed", text: "Recriacao simulada pronta", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "XCLOUD_RECREATE_DEVICE", detail: "Fluxo visual iniciado" },
+      { level: "info", code: "XCLOUD_DEVICE_FOUND", detail: "Device key lida do contexto" },
+      { level: "info", code: "XCLOUD_DEACTIVATE_PREVIEW", detail: "Sem Playwright real aqui" },
+      { level: "info", code: "XCLOUD_DELETE_PREVIEW", detail: "Sem exclusao real" },
+      { level: "success", code: "XCLOUD_RELOAD_PREVIEW", detail: "Checklist pronto" },
+    ],
+  ),
+  charge_customer: flow(
+    "Cobranca",
+    "Preview: cobrar cliente com template, valor e vencimento visuais.",
+    [
+      { state: "receiving", text: "Cobranca solicitada", duration: 400 },
+      { state: "interpreting", text: "Lendo valor e vencimento", duration: 500 },
+      { state: "preparing", text: "Preparando mensagem de cobranca", duration: 650 },
+      { state: "completed", text: "Preview de cobranca pronto", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "CHARGE_CUSTOMER", detail: "Cobranca montada no preview" },
+      { level: "info", code: "NO_EVOLUTION_CALL", detail: "Sem chamada HTTP" },
+      { level: "success", code: "COPY_READY", detail: "Texto pronto para copia manual" },
+    ],
+  ),
+  install_requested: flow(
+    "Instalacao",
+    "Preview: pedido de instalacao com midias e passos sugeridos.",
+    [
+      { state: "receiving", text: "Pedido de instalacao", duration: 400 },
+      { state: "detecting", text: "Identificando aparelho", duration: 550 },
+      { state: "preparing", text: "Selecionando tutorial", duration: 650 },
+      { state: "completed", text: "Instalacao preparada", duration: 1800 },
+    ],
+    [
+      { level: "info", code: "INSTALL_REQUESTED", detail: "Fluxo visual de instalacao" },
+      { level: "info", code: "MEDIA_PREVIEW_READY", detail: "Midias sugeridas" },
+      { level: "success", code: "INSTALL_GUIDE_READY", detail: "Passos prontos" },
+    ],
+  ),
   "tv-lg": {
     module: "Instalacao",
+    preview: "Preview legado: instalacao LG simulada.",
     states: [
       { state: "receiving", text: "Recebendo resposta", duration: 500 },
       { state: "interpreting", text: "Interpretando intent", duration: 600 },
@@ -39,6 +204,7 @@ const FLOWS: Record<string, {
   },
   "audio-falhou": {
     module: "Reenvio",
+    preview: "Preview legado: reenvio visual de audio.",
     states: [
       { state: "receiving", text: "Falha detectada", duration: 400 },
       { state: "failed", text: "Audio 4 falhou", duration: 600 },
@@ -54,6 +220,7 @@ const FLOWS: Record<string, {
   },
   "ja-paguei": {
     module: "Cobranca",
+    preview: "Preview legado: confirmacao visual de pagamento.",
     states: [
       { state: "receiving", text: "Verificando pagamento", duration: 500 },
       { state: "executing", text: "Confirmando status", duration: 600 },
@@ -66,6 +233,7 @@ const FLOWS: Record<string, {
   },
   "quero-ativar": {
     module: "Boas-vindas",
+    preview: "Preview legado: ativacao visual sem envio.",
     states: [
       { state: "receiving", text: "Solicitacao recebida", duration: 400 },
       { state: "executing", text: "Iniciando ativacao", duration: 800 },
@@ -78,6 +246,7 @@ const FLOWS: Record<string, {
   },
   "lista-nao-carrega": {
     module: "Suporte",
+    preview: "Preview legado: suporte visual para lista.",
     states: [
       { state: "receiving", text: "Problema reportado", duration: 400 },
       { state: "executing", text: "Buscando solucao", duration: 700 },
@@ -90,6 +259,7 @@ const FLOWS: Record<string, {
   },
   "teste-gerado": {
     module: "Teste",
+    preview: "Preview legado: teste simulado.",
     states: [
       { state: "receiving", text: "Teste iniciado", duration: 400 },
       { state: "executing", text: "Executando teste", duration: 500 },
@@ -102,6 +272,7 @@ const FLOWS: Record<string, {
   },
   "recriar-xcloud": {
     module: "XCloud",
+    preview: "Preview legado: recriacao visual XCloud.",
     states: [
       { state: "receiving", text: "Solicitacao recebida", duration: 400 },
       { state: "detecting", text: "Localizando device", duration: 600 },
@@ -123,6 +294,7 @@ const FLOWS: Record<string, {
   },
   "falha-xcloud": {
     module: "XCloud",
+    preview: "Preview legado: falha visual XCloud com retry.",
     states: [
       { state: "receiving", text: "Solicitacao recebida", duration: 400 },
       { state: "detecting", text: "Localizando device", duration: 500 },
@@ -144,6 +316,16 @@ const FLOWS: Record<string, {
 
 // Simulations
 const simulations = [
+  { id: "test_created", label: "Teste criado", icon: <Sparkles className="w-4 h-4" /> },
+  { id: "test_expired", label: "Teste expirado", icon: <Clock className="w-4 h-4" /> },
+  { id: "renewal_created", label: "Renovacao", icon: <RefreshCw className="w-4 h-4" /> },
+  { id: "app_swap", label: "Trocar app", icon: <Monitor className="w-4 h-4" /> },
+  { id: "second_screen", label: "Segunda tela", icon: <BarChart3 className="w-4 h-4" /> },
+  { id: "problem_created", label: "Problema", icon: <HelpCircle className="w-4 h-4" /> },
+  { id: "xcloud_remove_device", label: "Remover XCloud", icon: <Cloud className="w-4 h-4" /> },
+  { id: "xcloud_recreate_device", label: "Recriar XCloud", icon: <Cloud className="w-4 h-4" /> },
+  { id: "charge_customer", label: "Cobrar cliente", icon: <CreditCard className="w-4 h-4" /> },
+  { id: "install_requested", label: "Instalacao", icon: <Tv className="w-4 h-4" /> },
   { id: "tv-lg", label: "TV LG", icon: <Tv className="w-4 h-4" /> },
   { id: "audio-falhou", label: "Audio falhou", icon: <RefreshCw className="w-4 h-4" /> },
   { id: "ja-paguei", label: "Ja paguei", icon: <CreditCard className="w-4 h-4" /> },
@@ -174,7 +356,9 @@ const sidebarItems = [
   { id: "historico", label: "Historico", icon: History },
 ]
 
-export default function JarvisPage() {
+function JarvisPageContent() {
+  const searchParams = useSearchParams()
+  const hydratedFromQuery = useRef(false)
   const [activeTab, setActiveTab] = useState("central")
   const [jarvisState, setJarvisState] = useState<JarvisState>("idle")
   const [statusText, setStatusText] = useState("Aguardando evento")
@@ -182,7 +366,7 @@ export default function JarvisPage() {
   const [currentAction, setCurrentAction] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [context, setContext] = useState<{ name: string; device: string; flow: string } | null>(null)
+  const [context, setContext] = useState<{ name: string; device: string; flow: string; preview?: string; source?: string; testId?: string; clientId?: string } | null>(null)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [failures, setFailures] = useState<FailureEntry[]>([])
   const [processedCount, setProcessedCount] = useState(0)
@@ -208,9 +392,13 @@ export default function JarvisPage() {
     setIsProcessing(true)
     setLastEvent({ text: item.label, time: new Date() })
         setContext({
-          name: "Joao Silva",
-          device: item.simId === "tv-lg" ? "LG" : item.simId === "audio-falhou" ? "Samsung" : item.simId.includes("xcloud") ? "XCloud" : "—",
+          name: searchParams.get("client_name") || searchParams.get("name") || "Cliente em contexto",
+          device: searchParams.get("device_key") || (item.simId === "tv-lg" ? "LG" : item.simId === "audio-falhou" ? "Samsung" : item.simId.includes("xcloud") ? "XCloud" : "Visual"),
           flow: flow.module,
+          preview: flow.preview,
+          source: searchParams.get("source") || undefined,
+          testId: searchParams.get("test_id") || undefined,
+          clientId: searchParams.get("client_id") || undefined,
         })
 
     // Process states
@@ -266,7 +454,7 @@ export default function JarvisPage() {
     setStatusText("Aguardando evento")
     setCurrentAction(null)
     setIsProcessing(false)
-  }, [addLog])
+  }, [addLog, searchParams])
 
   // Process queue automatically
   useEffect(() => {
@@ -288,6 +476,44 @@ export default function JarvisPage() {
     setQueue(prev => [...prev, newItem])
     addLog("info", "QUEUE_ADD", `${label} adicionado a fila`)
   }, [addLog])
+
+  useEffect(() => {
+    if (hydratedFromQuery.current) return
+    hydratedFromQuery.current = true
+
+    const source = searchParams.get("source")
+    const clientId = searchParams.get("client_id")
+    const testId = searchParams.get("test_id")
+    const deviceKey = searchParams.get("device_key")
+    const requestedFlow = searchParams.get("flow") || searchParams.get("event")
+    const fallbackFlow = testId ? "test_created" : undefined
+    const flowId = requestedFlow && FLOWS[requestedFlow] ? requestedFlow : fallbackFlow
+
+    if (!source && !clientId && !testId && !deviceKey && !flowId) return
+
+    addLog("success", "QUERY_CONTEXT_RECEIVED", [
+      source ? `source=${source}` : null,
+      clientId ? `client_id=${clientId}` : null,
+      testId ? `test_id=${testId}` : null,
+      deviceKey ? "device_key=presente" : null,
+    ].filter(Boolean).join(" "))
+
+    setContext({
+      name: searchParams.get("client_name") || searchParams.get("name") || "Cliente em contexto",
+      device: deviceKey || "Visual",
+      flow: flowId ? FLOWS[flowId].module : "Contexto",
+      preview: flowId ? FLOWS[flowId].preview : "Contexto recebido do Painel 1 para leitura visual.",
+      source: source || undefined,
+      testId: testId || undefined,
+      clientId: clientId || undefined,
+    })
+    setLastEvent({ text: flowId ? `Query: ${flowId}` : "Contexto recebido", time: new Date() })
+
+    if (flowId) {
+      const label = simulations.find(sim => sim.id === flowId)?.label || flowId
+      handleSimulate(flowId, label)
+    }
+  }, [addLog, handleSimulate, searchParams])
 
   const config = stateConfig[jarvisState]
   const isActive = jarvisState !== "idle"
@@ -555,13 +781,24 @@ export default function JarvisPage() {
 
                   {/* Context pill - glass effect */}
                   {context && (
-                    <div className="mt-5 flex items-center gap-3 px-6 py-3 rounded-full card-glass">
-                      <User className="w-4 h-4 text-primary/70" />
-                      <span className="text-sm font-medium text-foreground">{context.name}</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                      <span className="text-sm text-muted-foreground/80">{context.device}</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                      <span className="text-sm font-medium text-primary">{context.flow}</span>
+                    <div className="mt-5 w-full max-w-[560px] rounded-2xl card-glass px-6 py-4">
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        <User className="w-4 h-4 text-primary/70" />
+                        <span className="text-sm font-medium text-foreground">{context.name}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                        <span className="text-sm text-muted-foreground/80">{context.device}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
+                        <span className="text-sm font-medium text-primary">{context.flow}</span>
+                      </div>
+                      <div className="mt-3 rounded-xl border border-primary/15 bg-background/35 px-4 py-3 text-center">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/70">WhatsApp preview</p>
+                        <p className="mt-1 text-xs leading-relaxed text-foreground/75">{context.preview}</p>
+                        {(context.source || context.testId || context.clientId) && (
+                          <p className="mt-2 font-mono text-[10px] text-muted-foreground/60">
+                            {[context.source && `source=${context.source}`, context.testId && `test_id=${context.testId}`, context.clientId && `client_id=${context.clientId}`].filter(Boolean).join("  ")}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -836,5 +1073,19 @@ export default function JarvisPage() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function JarvisPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+          <span className="font-mono text-xs text-muted-foreground">Inicializando painel 2...</span>
+        </div>
+      }
+    >
+      <JarvisPageContent />
+    </Suspense>
   )
 }
