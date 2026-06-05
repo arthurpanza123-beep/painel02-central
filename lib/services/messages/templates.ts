@@ -3,6 +3,7 @@ import { buildInstallMessage as buildInstallTemplate } from './install-templates
 export type FlowKey =
   | 'test_created'
   | 'test_expired'
+  | 'access_activated'
   | 'renewal_created'
   | 'install_requested'
   | 'app_swap'
@@ -30,6 +31,8 @@ export interface MessageContext {
   device?: string
   plan?: string
   problem?: string
+  amount?: string
+  dueAt?: string
 }
 
 function pick(...values: Array<unknown>): string {
@@ -81,6 +84,19 @@ export function buildRenewalMessage(ctx: MessageContext = {}) {
     optional('Plano', pick(ctx.plan, ctx.app)),
     optional('Valor', ctx.valor),
     optional('Vencimento', ctx.vencimento),
+  ].filter(Boolean).join('\n')
+}
+
+export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
+  return [
+    `Acesso ativado: ${pick(ctx.cliente, ctx.clientName, 'cliente')}`,
+    optional('App', ctx.app),
+    optional('Plano', ctx.plan),
+    optional('Valor', pick(ctx.valor, ctx.amount)),
+    optional('Vencimento', pick(ctx.vencimento, ctx.dueAt)),
+    optional('Painel', pick(ctx.painel, ctx.panel)),
+    '',
+    'Cliente pago ativado. Confira credenciais e oriente o uso no aplicativo.',
   ].filter(Boolean).join('\n')
 }
 
@@ -207,6 +223,7 @@ export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}) {
   switch (flow) {
     case 'test_created': return buildTestCreatedMessage(ctx)
     case 'test_expired': return buildTestExpiredOperatorMessage(ctx)
+    case 'access_activated': return buildAccessActivatedMessage(ctx)
     case 'renewal_created': return buildRenewalMessage(ctx)
     case 'install_requested': return buildInstallMessage(ctx)
     case 'app_swap': return buildAppSwapMessage(ctx)
@@ -215,4 +232,4 @@ export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}) {
   }
 }
 
-export const ALLOWED_FLOWS: FlowKey[] = ['test_created', 'test_expired', 'renewal_created', 'install_requested', 'app_swap', 'second_screen', 'problem_created']
+export const ALLOWED_FLOWS: FlowKey[] = ['test_created', 'test_expired', 'access_activated', 'renewal_created', 'install_requested', 'app_swap', 'second_screen', 'problem_created']
