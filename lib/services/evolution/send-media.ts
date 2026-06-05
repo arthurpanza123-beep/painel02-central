@@ -3,7 +3,8 @@ import { sendEvolutionRequest } from './client'
 import type { SendMediaInput } from './types'
 
 export async function sendMedia(input: SendMediaInput) {
-  const config = getEvolutionConfig()
+  const baseConfig = getEvolutionConfig()
+  const config = { ...baseConfig, dryRun: Boolean(baseConfig.dryRun || !baseConfig.enabled || input.dryRun) }
   const media = input.mediaUrl || input.mediaPath || ''
   return sendEvolutionRequest({
     action: 'send_media',

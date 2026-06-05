@@ -36,6 +36,7 @@ export interface SendTextInput {
   phone: string
   message: string
   context?: Record<string, unknown>
+  dryRun?: boolean
 }
 
 export interface SendMediaInput {
@@ -47,6 +48,7 @@ export interface SendMediaInput {
   mimetype?: string
   fileName?: string
   context?: Record<string, unknown>
+  dryRun?: boolean
 }
 
 export interface SendAudioInput {
@@ -54,4 +56,5 @@ export interface SendAudioInput {
   audioUrl?: string
   audioPath?: string
   context?: Record<string, unknown>
+  dryRun?: boolean
 }

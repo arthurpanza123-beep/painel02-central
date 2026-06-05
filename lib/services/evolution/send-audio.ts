@@ -3,7 +3,8 @@ import { sendEvolutionRequest } from './client'
 import type { SendAudioInput } from './types'
 
 export async function sendAudio(input: SendAudioInput) {
-  const config = getEvolutionConfig()
+  const baseConfig = getEvolutionConfig()
+  const config = { ...baseConfig, dryRun: Boolean(baseConfig.dryRun || !baseConfig.enabled || input.dryRun) }
   const audio = input.audioUrl || input.audioPath || ''
   return sendEvolutionRequest({
     action: 'send_audio',

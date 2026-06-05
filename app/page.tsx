@@ -384,6 +384,9 @@ function JarvisPageContent() {
   const [evolutionLoading, setEvolutionLoading] = useState(false)
   const [evolutionPhone, setEvolutionPhone] = useState("")
   const [evolutionFlow, setEvolutionFlow] = useState("test_created")
+  const [welcomeStep, setWelcomeStep] = useState("audio_1")
+  const [installApp, setInstallApp] = useState("XCloud")
+  const [installDevice, setInstallDevice] = useState("LG")
 
   // Add log
   const addLog = useCallback((level: LogEntry["level"], code: string, detail?: string) => {
@@ -532,6 +535,33 @@ function JarvisPageContent() {
       },
     })
   }, [callEvolutionEndpoint, evolutionFlow, evolutionPhone, handleSimulate])
+
+  const handleWelcome = useCallback((dryRun: boolean) => {
+    callEvolutionEndpoint("/api/flows/welcome", {
+      phone: evolutionPhone,
+      client: { name: "Arthur" },
+      dryRun,
+    })
+  }, [callEvolutionEndpoint, evolutionPhone])
+
+  const handleWelcomeRetry = useCallback((dryRun: boolean) => {
+    callEvolutionEndpoint("/api/flows/welcome/retry-step", {
+      phone: evolutionPhone,
+      step: welcomeStep,
+      client: { name: "Arthur" },
+      dryRun,
+    })
+  }, [callEvolutionEndpoint, evolutionPhone, welcomeStep])
+
+  const handleInstall = useCallback((dryRun: boolean) => {
+    callEvolutionEndpoint("/api/flows/install", {
+      phone: evolutionPhone,
+      client: { name: "Arthur" },
+      app: installApp,
+      device: installDevice,
+      dryRun,
+    })
+  }, [callEvolutionEndpoint, evolutionPhone, installApp, installDevice])
 
   useEffect(() => {
     if (hydratedFromQuery.current) return
@@ -1010,6 +1040,71 @@ function JarvisPageContent() {
                           ) : (
                             <p className="text-muted-foreground/35">Aguardando teste...</p>
                           )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                        <div className="rounded-xl border border-border/20 bg-background/25 p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Boas-vindas</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground/50">4 etapas: audio, audio, prova social, audio aparelho</p>
+                            </div>
+                            <select
+                              value={welcomeStep}
+                              onChange={(event) => setWelcomeStep(event.target.value)}
+                              className="h-8 rounded-lg border border-border/30 bg-background/50 px-2 text-[11px] text-foreground outline-none"
+                            >
+                              {["audio_1", "audio_2", "social_image", "audio_4"].map((step) => (
+                                <option key={step} value={step}>{step}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleWelcome(true)} disabled={evolutionLoading} className="h-8 text-xs bg-card/40 border-border/30">
+                              Preparar
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleWelcome(true)} disabled={evolutionLoading} className="h-8 text-xs bg-primary/10 border-primary/25 text-primary">
+                              Simular boas-vindas
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleWelcome(false)} disabled={evolutionLoading} className="h-8 text-xs bg-chart-2/10 border-chart-2/25 text-chart-2">
+                              Enviar operador
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleWelcomeRetry(true)} disabled={evolutionLoading} className="h-8 text-xs bg-chart-3/10 border-chart-3/25 text-chart-3">
+                              Retry etapa
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleWelcomeRetry(false)} disabled={evolutionLoading} className="h-8 text-xs bg-destructive/10 border-destructive/25 text-destructive">
+                              Retry operador
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-border/20 bg-background/25 p-3">
+                          <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                            <label className="space-y-1">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">App</span>
+                              <select value={installApp} onChange={(event) => setInstallApp(event.target.value)} className="h-8 w-full rounded-lg border border-border/30 bg-background/50 px-2 text-[11px] text-foreground outline-none">
+                                {["XCloud", "Blessed Player", "PlaySim", "FunPlay", "Smart STB", "Manual"].map((app) => <option key={app} value={app}>{app}</option>)}
+                              </select>
+                            </label>
+                            <label className="space-y-1">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Aparelho</span>
+                              <select value={installDevice} onChange={(event) => setInstallDevice(event.target.value)} className="h-8 w-full rounded-lg border border-border/30 bg-background/50 px-2 text-[11px] text-foreground outline-none">
+                                {["Samsung", "LG", "Roku", "Android TV / Google TV / TCL", "TV Box", "Fire Stick / Mi Stick", "Celular Android", "iPhone / iOS", "PC"].map((device) => <option key={device} value={device}>{device}</option>)}
+                              </select>
+                            </label>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleInstall(true)} disabled={evolutionLoading} className="h-8 text-xs bg-card/40 border-border/30">
+                              Preview instalacao
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleInstall(true)} disabled={evolutionLoading} className="h-8 text-xs bg-primary/10 border-primary/25 text-primary">
+                              Simular envio
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleInstall(false)} disabled={evolutionLoading} className="h-8 text-xs bg-chart-2/10 border-chart-2/25 text-chart-2">
+                              Enviar operador
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>

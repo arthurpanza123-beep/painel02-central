@@ -1,3 +1,5 @@
+import { buildInstallMessage as buildInstallTemplate } from './install-templates'
+
 export type FlowKey =
   | 'test_created'
   | 'test_expired'
@@ -170,8 +172,7 @@ function normalizeDeviceKey(device: string): string {
 }
 
 export function buildInstallMessage(ctx: MessageContext = {}) {
-  const key = normalizeDeviceKey(pick(ctx.device, 'Android TV / Google TV / TCL'))
-  return INSTALL_TEMPLATES[key] || INSTALL_TEMPLATES.android_tv
+  return buildInstallTemplate(pick(ctx.app, 'XCloud'), pick(ctx.device, 'Android TV / Google TV / TCL'))
 }
 
 export function buildAppSwapMessage(ctx: MessageContext = {}) {
