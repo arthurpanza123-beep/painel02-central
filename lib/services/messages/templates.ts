@@ -150,7 +150,7 @@ export function buildXcloudTestCreatedMedia(ctx: MessageContext = {}): FlowMedia
     `Cliente: ${clientName}`,
     `Pedido: ${pedido}`,
     '',
-    'Abra o app e clique em RELOAD ou RECARREGAR.',
+    'Abra o app e clique em *RELOAD* ou *RECARREGAR*.',
     '',
     'Gostando da qualidade, é só escolher um dos planos acima que eu renovo no mesmo login, sem precisar configurar tudo de novo.',
     '',
