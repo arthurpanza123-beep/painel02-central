@@ -47,7 +47,7 @@ function normalizeText(value: unknown): string {
 export function normalizeInstallDevice(value: unknown): InstallDevice {
   const normalized = normalizeText(value)
   if (normalized.includes('samsung') || normalized.includes('sansung')) return 'Samsung'
-  if (normalized === 'lg' || normalized.includes('tv lg') || normalized.includes('smart lg')) return 'LG'
+  if (normalized === 'lg' || /\blg\b/.test(normalized) || normalized.includes('tv lg') || normalized.includes('smart lg')) return 'LG'
   if (normalized.includes('roku')) return 'Roku'
   if (normalized.includes('box') || normalized.includes('caixinha')) return 'TV Box'
   if (normalized.includes('fire') || normalized.includes('stick') || normalized.includes('stik')) return 'Fire Stick / Mi Stick'
@@ -75,34 +75,23 @@ function appDisplayName(app: InstallApp): string {
   return isXcloud(app) ? 'XCloud TV' : app.name
 }
 
-function appendXcloudReload(lines: string[], app: InstallApp): string[] {
-  if (!isXcloud(app)) return lines
-  return [
-    ...lines,
-    '',
-    'Depois que entrar no app, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.',
-  ]
-}
-
 function downloaderMessage(app: InstallApp) {
   return [
     'Perfeito! 📺',
     '',
-    'Para instalar, veja primeiro esse vídeo rapidinho:',
+    'Para instalar siga o passo a passo desse vídeo',
     '',
     DOWNLOADER_VIDEO_URL,
     '',
-    'Depois abra o app *Downloader* e digite:',
+    'abra o app *Downloader* e digite:',
     '',
     `*${app.downloader || '4866905'}*`,
     '',
     `Baixe, instale e abra o *${appDisplayName(app)}*.`,
-    '',
-    'Me avise quando chegar na tela de login.',
   ].join('\n')
 }
 
-function storeMessage(app: InstallApp, device: InstallDevice, storeLine: string, extraLine = '') {
+function storeMessage(app: InstallApp, storeLine: string, extraLine = '') {
   return [
     'Perfeito! 📺',
     '',
@@ -112,9 +101,6 @@ function storeMessage(app: InstallApp, device: InstallDevice, storeLine: string,
     '',
     extraLine || null,
     extraLine ? '' : null,
-    device === 'Roku'
-      ? 'Adicione o app, abra e me envie uma foto da tela que aparecer.'
-      : 'Instale, abra o app e me avise quando chegar na tela de login.',
   ].filter((line) => line !== null).join('\n')
 }
 
@@ -132,89 +118,73 @@ export function buildInstallMessage(appValue: unknown = 'XCloud', deviceValue: u
 
   if (device === 'Celular Android') {
     if (isXcloud(app)) {
-      return appendXcloudReload([
+      return [
         'Perfeito! 📱',
         '',
         'Baixe o *XCloud TV* por aqui:',
         '',
         XCLOUD_ANDROID_URL,
-        '',
-        'Depois instale, abra o app e me avise quando chegar na tela de login.',
-      ], app).join('\n')
+      ].join('\n')
     }
     return [
       'Perfeito! 📱',
       '',
       `Abra a Play Store do celular e pesquise por *${app.name}*.`,
-      '',
-      'Instale, abra o app e me avise quando chegar na tela de login.',
     ].join('\n')
   }
 
   if (device === 'iPhone / iOS') {
     if (isXcloud(app)) {
-      return appendXcloudReload([
+      return [
         'Perfeito! 📱',
         '',
         'Abra este link da App Store:',
         '',
         XCLOUD_IOS_SEARCH_URL,
-        '',
-        'Instale o *XCloud TV*, abra e me avise quando chegar na tela de login.',
-        '',
-        'Se aparecer mais de um app parecido, me mande uma foto que eu confirmo para você.',
-      ], app).join('\n')
+      ].join('\n')
     }
     return [
       'Perfeito! 📱',
       '',
       `Abra a App Store e pesquise por *${app.name}*.`,
-      '',
-      'Instale, abra o app e me avise quando chegar na tela de login.',
     ].join('\n')
   }
 
   if (device === 'PC') {
-    return appendXcloudReload([
+    return [
       'Perfeito! 💻',
       '',
       'Para assistir pelo computador, acesse:',
       '',
       PC_URL,
-      '',
-      'Depois entre com os dados do teste que eu te enviar.',
-    ], app).join('\n')
+    ].join('\n')
   }
 
   if (device === 'Smart UP / Smart STB / Smart TV antiga') {
-    return appendXcloudReload([
+    return [
       'Perfeito! 📺',
       '',
       'Nesse tipo de TV, a configuração muda um pouco.',
       '',
-      'Me envie uma foto da tela de configuração de rede da TV.',
-      '',
-      'Eu vou ver se precisa trocar só o DNS ou se precisa preencher IP, máscara e gateway certinho.',
-    ], app).join('\n')
+      'Abra o *Smart UP* ou *Smart STB* e deixe na tela de configuração.',
+    ].join('\n')
   }
 
-  if (device === 'Android TV / Google TV / TCL') return appendXcloudReload([downloaderMessage(app)], app).join('\n')
-  if (device === 'TV Box') return appendXcloudReload([downloaderMessage(app)], app).join('\n')
-  if (device === 'Fire Stick / Mi Stick') return appendXcloudReload([downloaderMessage(app)], app).join('\n')
+  if (device === 'Android TV / Google TV / TCL') return downloaderMessage(app)
+  if (device === 'TV Box') return downloaderMessage(app)
+  if (device === 'Fire Stick / Mi Stick') return downloaderMessage(app)
 
   if (device === 'Samsung' || device === 'LG' || device === 'Roku') {
     const storeLine = device === 'Roku'
       ? 'Na sua Roku TV, abra a loja de canais/apps e pesquise por:'
       : `Na sua TV ${device}, abra a loja de aplicativos e pesquise por:`
     const extraLine = device === 'LG' && isXcloud(app) ? 'Ele também pode aparecer como *IPTV XCloud Pro*.' : ''
-    return appendXcloudReload([storeMessage(app, device, storeLine, extraLine)], app).join('\n')
+    return storeMessage(app, storeLine, extraLine)
   }
 
   return [
     'Perfeito!',
     '',
     `Pesquise por *${appDisplayName(app)}* na loja de aplicativos do aparelho.`,
-    '',
-    'Instale, abra e me avise quando chegar na tela de login.',
   ].join('\n')
 }

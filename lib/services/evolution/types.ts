@@ -1,4 +1,5 @@
 export type EvolutionMediaType = 'image' | 'video' | 'document'
+export type PresenceType = 'recording' | 'composing'
 
 export interface EvolutionConfig {
   enabled: boolean
@@ -8,6 +9,7 @@ export interface EvolutionConfig {
   instance: string
   timeoutMs: number
   operatorWhatsapp: string
+  operatorWhatsappList: string[]
 }
 
 export interface EvolutionLogEntry {
@@ -63,6 +65,14 @@ export interface SendAudioInput {
   phone: string
   audioUrl?: string
   audioPath?: string
+  context?: Record<string, unknown>
+  dryRun?: boolean
+}
+
+export interface SendPresenceInput {
+  phone: string
+  presence: PresenceType
+  delayMs: number
   context?: Record<string, unknown>
   dryRun?: boolean
 }

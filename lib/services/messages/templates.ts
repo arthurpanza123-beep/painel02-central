@@ -4,6 +4,7 @@ import { buildProviderCredentials, type BuiltCredentials } from '@/lib/config/pr
 export type FlowKey =
   | 'test_created'
   | 'test_expired'
+  | 'operator_test_expired'
   | 'access_activated'
   | 'renewal_created'
   | 'install_requested'
@@ -16,8 +17,11 @@ export interface MessageContext {
   id?: string
   testId?: string
   test_id?: string
+  client_id?: string
   cliente?: string
   clientName?: string
+  clientPhone?: string
+  client_phone?: string
   app?: string
   pedido?: string
   orderId?: string
@@ -43,6 +47,12 @@ export interface MessageContext {
   problem?: string
   amount?: string
   dueAt?: string
+  expiredAt?: string
+  expired_at?: string
+  expiresAt?: string
+  expires_at?: string
+  idempotency_key?: string
+  audience?: 'operator' | 'customer' | string
 }
 
 export interface FlowMediaMessage {
@@ -69,6 +79,22 @@ function pick(...values: Array<unknown>): string {
 function optional(label: string, value: unknown): string | null {
   const text = pick(value)
   return text ? `${label}: ${text}` : null
+}
+
+function boldField(label: string, value: unknown): string | null {
+  const text = pick(value)
+  return text ? `*${label}:* ${text}` : null
+}
+
+function boldCredentialLine(line: string): string {
+  const [label, ...rest] = line.split(':')
+  const value = rest.join(':').trim()
+  const displayLabel = label.trim() === 'Usuario' ? 'Usuário' : label.trim() === 'Codigo' ? 'Código' : label.trim()
+  return value ? `*${displayLabel}:* ${value}` : line
+}
+
+function joinMessage(lines: Array<string | null | undefined>): string {
+  return lines.filter((line): line is string => line !== null && line !== undefined).join('\n')
 }
 
 function isXcloudApp(value: unknown): boolean {
@@ -140,6 +166,7 @@ function shortTestPedido(ctx: MessageContext): string {
 
 export const TEST_VALUES_IMAGE_URL = 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/c94afca7-0531-4e2a-bb30-f171a87b6bf5.png'
 export const TEST_EXPIRED_STICKER_URL = process.env.TEST_EXPIRED_STICKER_URL || 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/figu.webp'
+export const ACCESS_ACTIVATED_IMAGE_URL = process.env.ACCESS_ACTIVATED_IMAGE_URL || 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/ativado.png'
 
 export function buildXcloudTestCreatedMedia(ctx: MessageContext = {}): FlowMediaMessage {
   const clientName = pick(ctx.cliente, ctx.clientName, 'Cliente')
@@ -194,20 +221,25 @@ export function buildTestCreatedMessage(ctx: MessageContext = {}) {
 }
 
 export function buildTestExpiredOperatorMessage(ctx: MessageContext = {}) {
-  return [
-    `Teste encerrado: ${pick(ctx.cliente, ctx.clientName, 'Cliente')}`,
-    optional('App', ctx.app),
-    optional('Painel', pick(ctx.painel, ctx.panel)),
-    optional('Abrir cliente', ctx.link),
-  ].filter(Boolean).join('\n')
+  return joinMessage([
+    '⚠️ *Teste expirado*',
+    '',
+    boldField('Cliente', pick(ctx.cliente, ctx.clientName, 'Cliente')),
+    boldField('Telefone', pick(ctx.clientPhone, ctx.phone)),
+    boldField('App', ctx.app),
+    boldField('Painel', pick(ctx.painel, ctx.panel)),
+    boldField('Usuário', pick(ctx.usuario, ctx.username)),
+    boldField('Expirou em', pick(ctx.expiredAt, ctx.expiresAt, ctx.dueAt, ctx.vencimento)),
+    '',
+    'Abrir no painel:',
+    pick(ctx.link),
+  ])
 }
 
 export function buildTestExpiredCustomerMessage(ctx: MessageContext = {}): FlowMediaMessage | string {
   const clientName = pick(ctx.cliente, ctx.clientName, 'cliente')
   const fallbackText = [
-    `Teste encerrado: ${clientName}`,
-    '',
-    'Seu teste terminou. Se gostou da qualidade, me chama aqui que eu ativo um plano no mesmo atendimento.',
+    'Teste encerrado. Se quiser ativar, me chama aqui.',
   ].join('\n')
 
   if (!TEST_EXPIRED_STICKER_URL) return fallbackText
@@ -231,68 +263,72 @@ export function buildTestExpiredCustomerMessage(ctx: MessageContext = {}): FlowM
 }
 
 export function buildRenewalMessage(ctx: MessageContext = {}) {
-  return [
-    `Ola, ${pick(ctx.cliente, ctx.clientName, 'cliente')}.`,
+  const fields = [
+    boldField('Cliente', pick(ctx.cliente, ctx.clientName)),
+    boldField('Plano', pick(ctx.plan, ctx.app)),
+    boldField('Valor', pick(ctx.valor, ctx.amount)),
+    boldField('Novo vencimento', pick(ctx.vencimento, ctx.dueAt)),
+  ].filter((line): line is string => Boolean(line))
+
+  return joinMessage([
+    '*Renovação confirmada!* 🔄✅',
     '',
-    'Sua renovacao da Central Play Plus esta disponivel.',
-    optional('Plano', pick(ctx.plan, ctx.app)),
-    optional('Valor', ctx.valor),
-    optional('Vencimento', ctx.vencimento),
-  ].filter(Boolean).join('\n')
+    ...fields,
+    '',
+    'Seu acesso segue ativo normalmente.',
+    'Não precisa configurar tudo de novo.',
+    '',
+    'Qualquer coisa, é só me chamar. 🚀',
+  ])
 }
 
 export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
   const isXcloud = isXcloudApp(app)
-  const isSmartTv = isSmartTvApp(app)
-  if (isXcloud) {
-    return [
-      'Acesso ativado com sucesso! ✅',
-      '',
-      optional('Cliente', pick(ctx.cliente, ctx.clientName)),
-      optional('Plano', ctx.plan),
-      optional('Validade', pick(ctx.vencimento, ctx.dueAt)),
-      '',
-      'Seu acesso já está liberado.',
-      '',
-      'Abra o XCloud e clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.',
-      '',
-      'Qualquer dúvida, me chama aqui que eu te ajudo. 🍿',
-    ].filter(Boolean).join('\n')
-  }
+  const credentials = catalogCredentials(ctx)
+  const providerAccess = isXcloud ? '' : credentialHeader(credentials, ctx)
+  const fields = [
+    boldField('Cliente', pick(ctx.cliente, ctx.clientName)),
+    boldField('Aplicativo', app),
+    boldField('Plano', ctx.plan),
+    boldField('Valor', pick(ctx.valor, ctx.amount)),
+    boldField('Vencimento', pick(ctx.vencimento, ctx.dueAt)),
+    boldField('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
+    providerAccess ? boldCredentialLine(providerAccess) : null,
+  ].filter((line): line is string => Boolean(line))
 
-  if (isSmartTv) {
-    return [
-      'Acesso ativado com sucesso! ✅',
-      '',
-      optional('Cliente', pick(ctx.cliente, ctx.clientName)),
-      optional('Plano', ctx.plan),
-      optional('Validade', pick(ctx.vencimento, ctx.dueAt)),
-      '',
-      'Dados de acesso:',
-      '',
-      ...smartTvLines(ctx),
-      '',
-      'Se precisar configurar a rede da TV, me envie uma foto da tela de configuração de rede.',
-    ].filter(Boolean).join('\n')
-  }
+  const baseCaption = [
+    '*Acesso ativado com sucesso!* ✅',
+    '',
+    ...fields,
+    '',
+    'Seu acesso já está liberado.',
+    isXcloud ? 'Agora é só abrir o aplicativo e entrar com suas credenciais.' : 'Agora é só abrir o aplicativo e entrar com seus dados.',
+    '',
+    isXcloud ? 'Depois de entrar, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : null,
+    isXcloud ? '' : null,
+    'Se precisar, eu te ajudo na configuração. 🚀',
+  ]
 
-  return [
-    'Acesso ativado com sucesso! ✅',
-    '',
-    optional('Cliente', pick(ctx.cliente, ctx.clientName)),
-    optional('App', app),
-    optional('Plano', ctx.plan),
-    optional('Validade', pick(ctx.vencimento, ctx.dueAt)),
-    '',
-    'Dados de acesso:',
-    '',
-    ...credentialLines(ctx),
-    '',
-    'Abra o aplicativo, preencha os dados acima e aproveite.',
-    '',
-    'Qualquer dúvida, me chama aqui que eu te ajudo. 🍿',
-  ].filter(Boolean).join('\n')
+  const caption = joinMessage(baseCaption)
+
+  return {
+    kind: 'media',
+    mediaUrl: ACCESS_ACTIVATED_IMAGE_URL,
+    caption,
+    type: 'image',
+    mimetype: 'image/png',
+    fileName: 'acesso-ativado.png',
+    fallbackText: caption,
+    context: {
+      flow: 'access_activated',
+      app,
+      clientName: pick(ctx.cliente, ctx.clientName) || undefined,
+      panel: pick(ctx.painel, ctx.panel, ctx.provider) || undefined,
+      plan: pick(ctx.plan) || undefined,
+      dueAt: pick(ctx.vencimento, ctx.dueAt) || undefined,
+    },
+  } satisfies FlowMediaMessage
 }
 
 export const INSTALL_TEMPLATES: Record<string, string> = {
@@ -399,15 +435,37 @@ export function buildAppSwapMessage(ctx: MessageContext = {}) {
 }
 
 export function buildSecondScreenMessage(ctx: MessageContext = {}) {
-  const credentials = isSmartTvApp(ctx.app) ? smartTvLines(ctx) : credentialLines(ctx)
-  return [
-    `Segunda tela solicitada: ${pick(ctx.cliente, ctx.clientName, 'cliente')}`,
-    optional('App', ctx.app),
-    optional('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
-    credentials.length ? ['', 'Credencial que sera usada:', '', ...credentials].join('\n') : null,
+  const credentials = (isSmartTvApp(ctx.app) ? smartTvLines(ctx) : credentialLines(ctx)).map(boldCredentialLine)
+  const isXcloud = isXcloudApp(ctx.app)
+  const audience = pick(ctx.audience).toLowerCase() === 'customer' ? 'customer' : 'operator'
+
+  if (audience === 'customer') {
+    return joinMessage([
+      '*Segunda tela liberada!* 📺✅',
+      '',
+      boldField('Aplicativo', ctx.app),
+      ...credentials,
+      '',
+      'Abra o aplicativo na segunda TV e entre com os dados acima.',
+      isXcloud ? 'Depois de entrar, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : null,
+      '',
+      'Se precisar, eu te ajudo na configuração. 🚀',
+    ])
+  }
+
+  return joinMessage([
+    '*Segunda tela preparada* 📺',
     '',
-    'Confirme disponibilidade de tela e dados antes de enviar qualquer orientacao ao cliente.',
-  ].filter(Boolean).join('\n')
+    boldField('Cliente', pick(ctx.cliente, ctx.clientName, 'cliente')),
+    boldField('Aplicativo', ctx.app),
+    boldField('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
+    '',
+    credentials.length ? ['*Credencial que será usada:*', ...credentials].join('\n') : null,
+    '',
+    isXcloud ? 'Oriente *RELOAD* ou *RECARREGAR* depois que a segunda tela estiver liberada.' : null,
+    isXcloud ? '' : null,
+    'Confira a tela e os dados antes de orientar o cliente.',
+  ])
 }
 
 export function buildProblemMessage(ctx: MessageContext = {}) {
@@ -424,6 +482,7 @@ export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}): FlowM
   switch (flow) {
     case 'test_created': return buildTestCreatedMessage(ctx)
     case 'test_expired': return pick(ctx.phone) ? buildTestExpiredCustomerMessage(ctx) : buildTestExpiredOperatorMessage(ctx)
+    case 'operator_test_expired': return buildTestExpiredOperatorMessage(ctx)
     case 'access_activated': return buildAccessActivatedMessage(ctx)
     case 'renewal_created': return buildRenewalMessage(ctx)
     case 'install_requested': return buildInstallMessage(ctx)
@@ -433,4 +492,4 @@ export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}): FlowM
   }
 }
 
-export const ALLOWED_FLOWS: FlowKey[] = ['test_created', 'test_expired', 'access_activated', 'renewal_created', 'install_requested', 'app_swap', 'second_screen', 'problem_created']
+export const ALLOWED_FLOWS: FlowKey[] = ['test_created', 'test_expired', 'operator_test_expired', 'access_activated', 'renewal_created', 'install_requested', 'app_swap', 'second_screen', 'problem_created']

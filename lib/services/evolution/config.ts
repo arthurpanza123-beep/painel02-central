@@ -11,7 +11,20 @@ function numberEnv(value: string | undefined, fallback: number): number {
   return Math.floor(parsed)
 }
 
+function listEnv(value: string | undefined): string[] {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 export function getEvolutionConfig(): EvolutionConfig {
+  const operatorWhatsapp = String(process.env.OPERATOR_WHATSAPP || '')
+  const operatorWhatsappList = listEnv(process.env.OPERATOR_WHATSAPP_LIST)
+  if (operatorWhatsapp && !operatorWhatsappList.includes(operatorWhatsapp)) {
+    operatorWhatsappList.push(operatorWhatsapp)
+  }
+
   return {
     enabled: boolEnv(process.env.EVOLUTION_ENABLED, false),
     dryRun: boolEnv(process.env.EVOLUTION_DRY_RUN, true),
@@ -19,7 +32,8 @@ export function getEvolutionConfig(): EvolutionConfig {
     apiKey: String(process.env.EVOLUTION_API_KEY || ''),
     instance: String(process.env.EVOLUTION_INSTANCE || ''),
     timeoutMs: numberEnv(process.env.EVOLUTION_TIMEOUT_MS, 30000),
-    operatorWhatsapp: String(process.env.OPERATOR_WHATSAPP || ''),
+    operatorWhatsapp,
+    operatorWhatsappList,
   }
 }
 

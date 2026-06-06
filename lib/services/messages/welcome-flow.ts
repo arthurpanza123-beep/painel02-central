@@ -5,6 +5,7 @@ import { sendAudio } from '../evolution/send-audio'
 import { sendMedia } from '../evolution/send-media'
 import { sendText } from '../evolution/send-text'
 import type { EvolutionSendResult } from '../evolution/types'
+import { waitHumanizedDelivery, type HumanizedDeliveryResult } from './humanized-delivery'
 
 export type WelcomeStepId = 'audio_1' | 'audio_2' | 'social_image' | 'audio_4'
 
@@ -21,6 +22,7 @@ export interface WelcomeFlowInput {
   phone: string
   client?: { name?: string }
   dryRun?: boolean
+  force?: boolean
 }
 
 export interface WelcomeStepResult {
@@ -31,6 +33,7 @@ export interface WelcomeStepResult {
   fallbackUsed?: boolean
   code: string
   message: string
+  humanized?: HumanizedDeliveryResult
   result?: EvolutionSendResult
 }
 
@@ -81,15 +84,86 @@ function resolveDryRun(inputDryRun?: boolean): boolean {
   return Boolean(inputDryRun || config.dryRun || !config.enabled)
 }
 
-function assertOperatorOnly(phone: string, dryRun: boolean): { ok: true } | { ok: false; message: string } {
-  if (dryRun) return { ok: true }
-  const config = getEvolutionConfig()
-  const target = normalizePhone(phone)
-  const operator = normalizePhone(config.operatorWhatsapp)
-  if (!target || !operator || target !== operator) {
-    return { ok: false, message: 'Envio real bloqueado: nesta fase apenas OPERATOR_WHATSAPP e permitido.' }
+function historyThreshold(): number {
+  const parsed = Number(process.env.WELCOME_HISTORY_MESSAGE_THRESHOLD || 5)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
+}
+
+function recentWindowMs(): number {
+  const hours = Number(process.env.WELCOME_HISTORY_WINDOW_HOURS || 72)
+  return (Number.isFinite(hours) && hours > 0 ? hours : 72) * 60 * 60 * 1000
+}
+
+function extractMessages(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload
+  if (!payload || typeof payload !== 'object') return []
+  const record = payload as Record<string, unknown>
+  for (const key of ['messages', 'data', 'records', 'items']) {
+    const value = record[key]
+    if (Array.isArray(value)) return value
+    if (value && typeof value === 'object' && Array.isArray((value as Record<string, unknown>).messages)) {
+      return (value as Record<string, unknown>).messages as unknown[]
+    }
   }
-  return { ok: true }
+  return []
+}
+
+function messageTimestamp(message: unknown): number {
+  if (!message || typeof message !== 'object') return 0
+  const record = message as Record<string, unknown>
+  const raw = record.messageTimestamp || record.timestamp || record.createdAt || record.created_at
+  if (typeof raw === 'number') return raw < 10_000_000_000 ? raw * 1000 : raw
+  if (typeof raw === 'string') {
+    const parsed = new Date(raw).getTime()
+    return Number.isNaN(parsed) ? 0 : parsed
+  }
+  return 0
+}
+
+function hasActiveCustomerContext(messages: unknown[]): boolean {
+  const joined = messages.map((message) => JSON.stringify(message).toLowerCase()).join('\n')
+  return /renova|renovacao|renova[cç][aã]o|pagou|pagamento|cliente ativo|vencimento|suporte|login|senha|reload|recarregar/.test(joined)
+}
+
+async function inspectRecentHistory(phone: string) {
+  const config = getEvolutionConfig()
+  const normalized = normalizePhone(phone)
+  if (!normalized || !config.apiUrl || !config.apiKey || !config.instance) {
+    return { checked: false, allowWelcome: false, messageCount: 0, reason: 'Historico indisponivel: Evolution incompleta.' }
+  }
+
+  const remoteJid = `${normalized}@s.whatsapp.net`
+  const response = await fetch(`${config.apiUrl.replace(/\/+$/, '')}/chat/findMessages/${config.instance}`, {
+    method: 'POST',
+    headers: { apikey: config.apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      where: { key: { remoteJid } },
+      limit: 20,
+    }),
+  })
+  if (!response.ok) {
+    return { checked: false, allowWelcome: false, messageCount: 0, reason: `Historico indisponivel: Evolution HTTP ${response.status}.` }
+  }
+
+  const payload = await response.json().catch(() => null)
+  const cutoff = Date.now() - recentWindowMs()
+  const recent = extractMessages(payload).filter((message) => {
+    const ts = messageTimestamp(message)
+    return !ts || ts >= cutoff
+  })
+  const threshold = historyThreshold()
+  const activeContext = hasActiveCustomerContext(recent)
+  const allowWelcome = recent.length < threshold && !activeContext
+  return {
+    checked: true,
+    allowWelcome,
+    messageCount: recent.length,
+    threshold,
+    activeContext,
+    reason: allowWelcome
+      ? 'Historico curto; boas-vindas permitidas.'
+      : 'Conversa recente suficiente ou contexto de cliente ativo detectado.',
+  }
 }
 
 export function getWelcomeStep(step: string): WelcomeStep | null {
@@ -97,12 +171,18 @@ export function getWelcomeStep(step: string): WelcomeStep | null {
 }
 
 async function executeStep(phone: string, step: WelcomeStep, dryRun: boolean, context: Record<string, unknown>): Promise<WelcomeStepResult> {
+  const humanized = await waitHumanizedDelivery({
+    phone,
+    presence: step.type === 'audio' ? 'recording' : 'composing',
+    dryRun,
+    context: { ...context, delivery: 'humanized' },
+  })
   const result = step.type === 'audio'
     ? await sendAudio({ phone, audioUrl: step.url, dryRun, context })
     : await sendMedia({ phone, mediaUrl: step.url, caption: step.caption || '', type: 'image', mimetype: 'image/png', fileName: 'prova-social.png', dryRun, context })
 
   if (result.ok) {
-    return { step: step.step, label: step.label, ok: true, dryRun: result.dryRun, code: result.code, message: result.message, result }
+    return { step: step.step, label: step.label, ok: true, dryRun: result.dryRun, code: result.code, message: result.message, humanized, result }
   }
 
   const fallback = await sendText({ phone, message: step.fallbackText, dryRun, context: { ...context, fallback_for: step.step } })
@@ -114,15 +194,30 @@ async function executeStep(phone: string, step: WelcomeStep, dryRun: boolean, co
     fallbackUsed: true,
     code: fallback.ok ? 'FALLBACK_TEXT_SENT' : result.code,
     message: fallback.ok ? 'Midia falhou; fallback de texto executado.' : result.message,
+    humanized,
     result: fallback.ok ? fallback : result,
   }
 }
 
 export async function dispatchWelcomeFlow(input: WelcomeFlowInput) {
   const dryRun = resolveDryRun(input.dryRun)
-  const guard = assertOperatorOnly(input.phone, dryRun)
-  if (!guard.ok) {
-    return { ok: false, dryRun, code: 'OPERATOR_ONLY', message: guard.message, phone: maskPhone(input.phone), steps: buildWelcomeFlow() }
+  const history = input.force ? { checked: false, allowWelcome: true, messageCount: 0, reason: 'Forcado pelo operador.' } : await inspectRecentHistory(input.phone).catch((error) => ({
+    checked: false,
+    allowWelcome: false,
+    messageCount: 0,
+    reason: error instanceof Error ? error.message : 'Falha ao consultar historico.',
+  }))
+  if (!history.allowWelcome) {
+    return {
+      ok: true,
+      dryRun,
+      skipped: true,
+      code: 'WELCOME_SKIPPED_RECENT_HISTORY',
+      message: 'Boas-vindas nao enviadas para evitar reiniciar conversa ativa.',
+      phone: maskPhone(input.phone),
+      history,
+      steps: buildWelcomeFlow(),
+    }
   }
 
   if (dryRun) {
@@ -164,11 +259,6 @@ export async function retryWelcomeStep(input: WelcomeFlowInput & { step: Welcome
   }
 
   const dryRun = resolveDryRun(input.dryRun)
-  const guard = assertOperatorOnly(input.phone, dryRun)
-  if (!guard.ok) {
-    return { ok: false, dryRun, code: 'OPERATOR_ONLY', message: guard.message, phone: maskPhone(input.phone), step }
-  }
-
   if (dryRun) {
     return { ok: true, dryRun: true, code: 'WELCOME_RETRY_DRY_RUN', message: 'Dry-run: retry preparado, sem envio real.', phone: maskPhone(input.phone), step }
   }
