@@ -234,6 +234,8 @@ export function buildTestExpiredOperatorMessage(ctx: MessageContext = {}) {
   const xcloudStatus = pick(ctx.xcloud_remove_status, ctx.xcloudRemoveStatus)
   const panel = pick(ctx.painel, ctx.panel)
   const username = pick(ctx.usuario, ctx.username)
+  const xcloudStatusLower = xcloudStatus.toLowerCase()
+  const xcloudFailed = !manualCloseRequired && (xcloudStatusLower.includes('falh') || xcloudStatusLower.includes('pendente'))
 
   return joinMessage([
     '⚠️ *Teste expirado*',
@@ -243,13 +245,15 @@ export function buildTestExpiredOperatorMessage(ctx: MessageContext = {}) {
     boldField('Usuário', username),
     boldField('App', ctx.app),
     boldField('Painel', panel),
-    boldField('Remoção XCloud', xcloudStatus),
+    !manualCloseRequired ? boldField('Remoção XCloud', xcloudStatus) : null,
     boldField('Expirou em', pick(ctx.expiredAt, ctx.expiresAt, ctx.dueAt, ctx.vencimento)),
-    manualCloseRequired ? '' : null,
+    '',
+    !manualCloseRequired && !xcloudFailed ? 'Teste XCloud encerrado automaticamente. Não precisa desativar usuário no Yellow Box.' : null,
+    xcloudFailed ? 'Remoção XCloud não confirmada. Verifique o teste no Painel 1 antes de qualquer ação manual.' : null,
     manualCloseRequired ? `Precisa encerrar manualmente no painel ${panel || 'do provedor'} o usuário ${username || '-'}.` : null,
-    providerUrl ? '' : null,
-    providerUrl ? 'Painel do provedor:' : null,
-    providerUrl || null,
+    manualCloseRequired && providerUrl ? '' : null,
+    manualCloseRequired && providerUrl ? 'Painel do provedor:' : null,
+    manualCloseRequired && providerUrl ? providerUrl : null,
     '',
     'Abrir no Painel 1:',
     pick(ctx.link),
