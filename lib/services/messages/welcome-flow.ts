@@ -6,6 +6,7 @@ import { sendMedia } from '../evolution/send-media'
 import { sendText } from '../evolution/send-text'
 import type { EvolutionSendResult } from '../evolution/types'
 import { waitHumanizedDelivery, type HumanizedDeliveryResult } from './humanized-delivery'
+import { inspectWelcomeCancellation, recordOperationalEvent, updateClientOperationalState, type OperationalClient } from './operational-store'
 
 export type WelcomeStepId = 'audio_1' | 'audio_2' | 'social_image' | 'audio_4'
 
@@ -20,9 +21,11 @@ export interface WelcomeStep {
 
 export interface WelcomeFlowInput {
   phone: string
-  client?: { name?: string }
+  client?: { id?: string; name?: string } | OperationalClient | null
   dryRun?: boolean
   force?: boolean
+  startedAt?: string
+  messageId?: string
 }
 
 export interface WelcomeStepResult {
@@ -170,22 +173,65 @@ export function getWelcomeStep(step: string): WelcomeStep | null {
   return buildWelcomeFlow().find((item) => item.step === step) || null
 }
 
-async function executeStep(phone: string, step: WelcomeStep, dryRun: boolean, context: Record<string, unknown>): Promise<WelcomeStepResult> {
+async function welcomeCancelReason(input: WelcomeFlowInput, step?: WelcomeStep): Promise<string | false> {
+  if (input.force || input.dryRun) return false
+  const client = input.client && 'id' in input.client ? input.client as OperationalClient : null
+  const check = await inspectWelcomeCancellation({
+    client,
+    phone: input.phone,
+    startedAt: input.startedAt,
+    messageId: input.messageId,
+  })
+  if (!check.cancelled) return false
+  if (client?.id) {
+    await updateClientOperationalState({
+      client,
+      metadataPatch: {
+        welcome_flow_status: 'cancelled',
+        welcome_flow_cancelled_at: new Date().toISOString(),
+        welcome_cancel_reason: check.reason || 'cancelled',
+        welcome_cancelled_step: step?.step || null,
+      },
+    }).catch(() => null)
+    await recordOperationalEvent('WELCOME_CANCELLED', 'info', {
+      client,
+      phone: input.phone,
+      stage: 'novo_lead',
+      message: 'Fluxo de boas-vindas cancelado antes de enviar proxima etapa.',
+      metadata: { flow: 'welcome', reason: check.reason || 'cancelled', step: step?.step || null },
+    }).catch(() => null)
+  }
+  return check.reason || 'cancelled'
+}
+
+async function executeStep(input: WelcomeFlowInput, step: WelcomeStep, dryRun: boolean, context: Record<string, unknown>): Promise<WelcomeStepResult> {
   const humanized = await waitHumanizedDelivery({
-    phone,
+    phone: input.phone,
     presence: step.type === 'audio' ? 'recording' : 'composing',
     dryRun,
     context: { ...context, delivery: 'humanized' },
+    shouldContinue: () => welcomeCancelReason(input, step),
   })
+  if (humanized.cancelled) {
+    return {
+      step: step.step,
+      label: step.label,
+      ok: false,
+      dryRun,
+      code: 'WELCOME_CANCELLED',
+      message: `Fluxo cancelado: ${humanized.cancelReason || 'cancelled'}.`,
+      humanized,
+    }
+  }
   const result = step.type === 'audio'
-    ? await sendAudio({ phone, audioUrl: step.url, dryRun, context })
-    : await sendMedia({ phone, mediaUrl: step.url, caption: step.caption || '', type: 'image', mimetype: 'image/png', fileName: 'prova-social.png', dryRun, context })
+    ? await sendAudio({ phone: input.phone, audioUrl: step.url, dryRun, context })
+    : await sendMedia({ phone: input.phone, mediaUrl: step.url, caption: step.caption || '', type: 'image', mimetype: 'image/png', fileName: 'prova-social.png', dryRun, context })
 
   if (result.ok) {
     return { step: step.step, label: step.label, ok: true, dryRun: result.dryRun, code: result.code, message: result.message, humanized, result }
   }
 
-  const fallback = await sendText({ phone, message: step.fallbackText, dryRun, context: { ...context, fallback_for: step.step } })
+  const fallback = await sendText({ phone: input.phone, message: step.fallbackText, dryRun, context: { ...context, fallback_for: step.step } })
   return {
     step: step.step,
     label: step.label,
@@ -234,8 +280,34 @@ export async function dispatchWelcomeFlow(input: WelcomeFlowInput) {
 
   const results: WelcomeStepResult[] = []
   for (const step of buildWelcomeFlow()) {
-    const result = await executeStep(input.phone, step, false, { flow: 'welcome', step: step.step, client: input.client || {} })
+    const cancelReason = await welcomeCancelReason(input, step)
+    if (cancelReason) {
+      return {
+        ok: true,
+        dryRun: false,
+        cancelled: true,
+        code: 'WELCOME_CANCELLED',
+        message: `Fluxo de boas-vindas cancelado: ${cancelReason}.`,
+        phone: maskPhone(input.phone),
+        status: 'cancelled',
+        cancelReason,
+        results,
+      }
+    }
+    const result = await executeStep(input, step, false, { flow: 'welcome', step: step.step, client: input.client || {} })
     results.push(result)
+    if (result.code === 'WELCOME_CANCELLED') {
+      return {
+        ok: true,
+        dryRun: false,
+        cancelled: true,
+        code: 'WELCOME_CANCELLED',
+        message: result.message,
+        phone: maskPhone(input.phone),
+        status: 'cancelled',
+        results,
+      }
+    }
     if (!result.ok) {
       return {
         ok: false,
@@ -247,6 +319,17 @@ export async function dispatchWelcomeFlow(input: WelcomeFlowInput) {
         results,
       }
     }
+  }
+
+  if (input.client && 'id' in input.client && input.client.id) {
+    await updateClientOperationalState({
+      client: input.client as OperationalClient,
+      metadataPatch: {
+        welcome_flow_status: 'completed',
+        welcome_flow_completed_at: new Date().toISOString(),
+        active_flow_type: null,
+      },
+    }).catch(() => null)
   }
 
   return { ok: true, dryRun: false, code: 'WELCOME_SENT', message: 'Fluxo de boas-vindas enviado.', phone: maskPhone(input.phone), status: 'aguardando_aparelho', results }
@@ -263,6 +346,6 @@ export async function retryWelcomeStep(input: WelcomeFlowInput & { step: Welcome
     return { ok: true, dryRun: true, code: 'WELCOME_RETRY_DRY_RUN', message: 'Dry-run: retry preparado, sem envio real.', phone: maskPhone(input.phone), step }
   }
 
-  const result = await executeStep(input.phone, step, false, { flow: 'welcome_retry', step: step.step, client: input.client || {} })
+  const result = await executeStep(input, step, false, { flow: 'welcome_retry', step: step.step, client: input.client || {} })
   return { ...result, phone: maskPhone(input.phone) }
 }

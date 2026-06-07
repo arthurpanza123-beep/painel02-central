@@ -11,14 +11,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, code: 'PHONE_REQUIRED', message: 'Informe phone.' }, { status: 400 })
   }
 
-  const result = await dispatchWelcomeFlow({ phone: body.phone, client: body.client || {}, dryRun: body.dryRun, force: body.force })
-  if (result.ok && !(result as { skipped?: boolean }).skipped) {
-    const client = await findClientByPhone(body.phone).catch(() => null)
+  const client = await findClientByPhone(body.phone).catch(() => null)
+  const startedAt = new Date().toISOString()
+  const result = await dispatchWelcomeFlow({ phone: body.phone, client: client || body.client || {}, dryRun: body.dryRun, force: body.force, startedAt })
+  if (result.ok && !(result as { skipped?: boolean }).skipped && !(result as { cancelled?: boolean }).cancelled) {
     const code = (result as { dryRun?: boolean }).dryRun ? 'WELCOME_DRY_RUN' : 'WELCOME_SENT'
     await updateClientOperationalState({
       client,
       status: 'lead',
       metadataPatch: {
+        welcome_flow_started_at: startedAt,
+        welcome_flow_status: (result as { cancelled?: boolean }).cancelled ? 'cancelled' : 'completed',
+        welcome_flow_completed_at: (result as { cancelled?: boolean }).cancelled ? undefined : new Date().toISOString(),
         welcome_sent_at: new Date().toISOString(),
         welcome_status: code,
         welcome_forced_at: body.force ? new Date().toISOString() : undefined,

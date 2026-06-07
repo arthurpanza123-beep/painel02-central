@@ -21,6 +21,13 @@ export interface WelcomeOperationalHistory {
   reasons: string[]
 }
 
+export interface WelcomeCancellationCheck {
+  cancelled: boolean
+  reason?: string
+  client?: OperationalClient | null
+  metadata?: JsonRecord
+}
+
 function config() {
   return {
     url: String(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
@@ -98,6 +105,14 @@ export async function findClientByPhone(phone: string): Promise<OperationalClien
   return rows[0] || null
 }
 
+export async function findClientById(id: string): Promise<OperationalClient | null> {
+  if (!enabled() || !id) return null
+  const rows = await request<OperationalClient[]>(
+    `clients?select=id,name,phone_e164,status,legacy_metadata,created_at&id=eq.${queryValue(id)}&limit=1`
+  )
+  return rows[0] || null
+}
+
 async function listOperationalRows(path: string): Promise<Array<Record<string, unknown>>> {
   return request<Array<Record<string, unknown>>>(path).catch(() => {
     throw new Error('Falha ao consultar historico operacional.')
@@ -147,6 +162,17 @@ export async function inspectWelcomeOperationalHistory(input: {
   if (isRecentIso(metadata.welcome_sent_at, input.windowMs) || isRecentIso(metadata.welcome_started_at, input.windowMs)) {
     reasons.push('welcome_recent_24h')
   }
+  if (isRecentIso(metadata.install_sent_at, input.windowMs)) {
+    reasons.push('install_recent_24h')
+  }
+  const activeFlowType = metadataString(metadata, 'active_flow_type')
+  if (activeFlowType) {
+    reasons.push(`active_flow_${activeFlowType}`)
+  }
+  const welcomeFlowStatus = metadataString(metadata, 'welcome_flow_status')
+  if (welcomeFlowStatus === 'running') {
+    reasons.push('welcome_flow_running')
+  }
 
   const cutoffIso = new Date(Date.now() - input.windowMs).toISOString()
   const [logs, pipelineEvents] = await Promise.all([
@@ -171,6 +197,49 @@ export async function inspectWelcomeOperationalHistory(input: {
     threshold: input.threshold,
     reasons,
   }
+}
+
+export async function inspectWelcomeCancellation(input: {
+  client: OperationalClient | null
+  phone: string
+  startedAt?: string
+  messageId?: string
+}): Promise<WelcomeCancellationCheck> {
+  if (!enabled()) return { cancelled: false, client: input.client, metadata: metadataOf(input.client) }
+
+  const latest = input.client?.id
+    ? await findClientById(input.client.id).catch(() => input.client)
+    : await findClientByPhone(input.phone).catch(() => input.client)
+  const metadata = metadataOf(latest || input.client)
+  const status = String(latest?.status || input.client?.status || '').toLowerCase()
+  const startedMs = new Date(input.startedAt || metadataString(metadata, 'welcome_flow_started_at') || metadataString(metadata, 'welcome_started_at') || 0).getTime()
+
+  const happenedAfterStart = (value: unknown) => {
+    const time = new Date(String(value || '')).getTime()
+    if (!Number.isFinite(time)) return false
+    return !Number.isFinite(startedMs) || startedMs <= 0 || time >= startedMs
+  }
+
+  if (status === 'active' || status === 'test_active') {
+    return { cancelled: true, reason: `status_${status}`, client: latest || input.client, metadata }
+  }
+  if (metadataString(metadata, 'welcome_flow_status') === 'cancelled') {
+    return { cancelled: true, reason: metadataString(metadata, 'welcome_cancel_reason') || 'welcome_cancelled', client: latest || input.client, metadata }
+  }
+  if (metadataString(metadata, 'active_flow_type') === 'install') {
+    return { cancelled: true, reason: 'active_flow_install', client: latest || input.client, metadata }
+  }
+  if (metadata.install_sent_at && happenedAfterStart(metadata.install_sent_at)) {
+    return { cancelled: true, reason: 'install_sent', client: latest || input.client, metadata }
+  }
+  if (metadata.last_device_intent_at && happenedAfterStart(metadata.last_device_intent_at)) {
+    return { cancelled: true, reason: 'device_intent_received', client: latest || input.client, metadata }
+  }
+  if (input.messageId && metadataString(metadata, 'last_inbound_message_id') && metadataString(metadata, 'last_inbound_message_id') !== input.messageId && metadata.last_inbound_at && happenedAfterStart(metadata.last_inbound_at)) {
+    return { cancelled: true, reason: 'new_inbound_received', client: latest || input.client, metadata }
+  }
+
+  return { cancelled: false, client: latest || input.client, metadata }
 }
 
 export async function ensureInboundLead(input: {
@@ -239,22 +308,47 @@ export async function updateClientOperationalState(input: {
   client: OperationalClient | null
   metadataPatch?: JsonRecord
   status?: string
-}) {
-  if (!enabled() || !input.client?.id) return
+}): Promise<OperationalClient | null> {
+  if (!enabled() || !input.client?.id) return input.client || null
   const now = new Date().toISOString()
+  const latest = await findClientById(input.client.id).catch(() => input.client)
   const metadata = {
-    ...metadataOf(input.client),
+    ...metadataOf(latest || input.client),
     ...(input.metadataPatch || {}),
   }
   const patch: JsonRecord = {
     legacy_metadata: safeMetadata(metadata),
     updated_at: now,
   }
-  if (input.status && input.client.status !== 'active') patch.status = input.status
-  await request(
-    `clients?id=eq.${queryValue(input.client.id)}`,
-    { method: 'PATCH', body: JSON.stringify(patch) }
+  if (input.status && (latest || input.client).status !== 'active') patch.status = input.status
+  const rows = await request<OperationalClient[]>(
+    `clients?id=eq.${queryValue(input.client.id)}&select=id,name,phone_e164,status,legacy_metadata`,
+    { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) }
   )
+  return rows[0] || { ...(latest || input.client), legacy_metadata: metadata }
+}
+
+export async function cancelWelcomeFlow(input: {
+  client: OperationalClient | null
+  phone: string
+  reason: string
+  messageId?: string
+  device?: string
+}): Promise<OperationalClient | null> {
+  const now = new Date().toISOString()
+  return updateClientOperationalState({
+    client: input.client,
+    status: 'lead',
+    metadataPatch: {
+      welcome_flow_status: 'cancelled',
+      welcome_flow_cancelled_at: now,
+      welcome_cancel_reason: input.reason,
+      active_flow_type: 'install',
+      last_device_intent_at: now,
+      last_device_intent_message_id: input.messageId || undefined,
+      last_device_intent_device: input.device || undefined,
+    },
+  })
 }
 
 export async function writeOperationalLog(event: string, level: 'info' | 'warning' | 'error' | 'success', payload: {

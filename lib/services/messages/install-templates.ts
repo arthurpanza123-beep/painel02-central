@@ -83,11 +83,11 @@ function downloaderMessage(app: InstallApp) {
     '',
     DOWNLOADER_VIDEO_URL,
     '',
-    'abra o app *Downloader* e digite:',
+    'abra o app Downloader e digite:',
     '',
-    `*${app.downloader || '4866905'}*`,
+    app.downloader || '4866905',
     '',
-    `Baixe, instale e abra o *${appDisplayName(app)}*.`,
+    `Baixe, instale e abra o ${appDisplayName(app)}.`,
   ].join('\n')
 }
 
@@ -97,7 +97,7 @@ function storeMessage(app: InstallApp, storeLine: string, extraLine = '') {
     '',
     storeLine,
     '',
-    `*${appDisplayName(app)}*`,
+    appDisplayName(app),
     '',
     extraLine || null,
     extraLine ? '' : null,
@@ -178,7 +178,7 @@ export function buildInstallMessage(appValue: unknown = 'XCloud', deviceValue: u
     const storeLine = device === 'Roku'
       ? 'Na sua Roku TV, abra a loja de canais/apps e pesquise por:'
       : `Na sua TV ${device}, abra a loja de aplicativos e pesquise por:`
-    const extraLine = device === 'LG' && isXcloud(app) ? 'Ele também pode aparecer como *IPTV XCloud Pro*.' : ''
+    const extraLine = (device === 'LG' || device === 'Samsung') && isXcloud(app) ? 'Ele também pode aparecer como IPTV XCloud Pro.' : ''
     return storeMessage(app, storeLine, extraLine)
   }
 

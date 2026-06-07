@@ -4,6 +4,7 @@ import { normalizePhone } from '../evolution/normalize-phone'
 import { buildInstallMessage, normalizeInstallDevice } from './install-templates'
 import { classifyPhoneForWelcome, type CustomerLookupResult } from './inbound-classifier'
 import {
+  cancelWelcomeFlow,
   ensureInboundLead,
   inspectWelcomeOperationalHistory,
   isRecentIso,
@@ -126,56 +127,63 @@ function welcomeHistoryWindowMs(): number {
   return (Number.isFinite(hours) && hours > 0 ? hours : 72) * 60 * 60 * 1000
 }
 
-async function maybeSendInstall(phone: string, text: string, client: OperationalClient | null): Promise<unknown | null> {
+async function maybeSendInstall(input: {
+  phone: string
+  text: string
+  client: OperationalClient | null
+  messageId?: string
+}): Promise<unknown | null> {
   if (!boolEnv(process.env.INBOUND_INSTALL_AUTO_REPLY_ENABLED, true)) return null
-  if (!looksLikeDeviceAnswer(text)) return null
+  if (!looksLikeDeviceAnswer(input.text)) return null
 
   pruneCache(recentInstallByPhone, INSTALL_TTL_MS)
   const config = getEvolutionConfig()
   const dryRun = config.dryRun || !config.enabled
-  const device = normalizeInstallDevice(text)
-  const metadata = client?.legacy_metadata && typeof client.legacy_metadata === 'object' && !Array.isArray(client.legacy_metadata) ? client.legacy_metadata : {}
+  const device = normalizeInstallDevice(input.text)
+  const metadata = input.client?.legacy_metadata && typeof input.client.legacy_metadata === 'object' && !Array.isArray(input.client.legacy_metadata) ? input.client.legacy_metadata : {}
   const previousDevice = metadataString(metadata, 'install_device')
   const previousInstallAt = metadataString(metadata, 'install_sent_at')
-  const previousInstallStatus = metadataString(metadata, 'install_status')
-  const previousInstallWasDryRun = metadata.install_dry_run === true || previousInstallStatus === 'dry_run'
-  if (previousDevice === device && isRecentIso(previousInstallAt, INSTALL_TTL_MS) && !previousInstallWasDryRun) {
-    logInbound('INSTALL_SKIPPED_RECENT_DUPLICATE', { phone, device, source: 'supabase_metadata' })
+  if (previousDevice === device && isRecentIso(previousInstallAt, INSTALL_TTL_MS)) {
+    logInbound('INSTALL_SKIPPED_RECENT_DUPLICATE', { phone: input.phone, device, source: 'supabase_metadata' })
     await recordOperationalEvent('FLOW_SKIPPED_DUPLICATE', 'info', {
-      client,
-      phone,
+      client: input.client,
+      phone: input.phone,
       stage: 'contato',
       message: 'Instalacao duplicada ignorada por trava persistente.',
       metadata: { flow: 'install', device, previous_install_at: previousInstallAt },
     })
     return { ok: true, skipped: true, code: 'INSTALL_SKIPPED_RECENT_DUPLICATE', device }
   }
-  const recentInstall = recentInstallByPhone.get(phone)
+  const recentInstall = recentInstallByPhone.get(input.phone)
   if (recentInstall?.device === device) {
-    logInbound('INSTALL_SKIPPED_RECENT_DUPLICATE', { phone, device })
+    logInbound('INSTALL_SKIPPED_RECENT_DUPLICATE', { phone: input.phone, device })
     return { ok: true, skipped: true, code: 'INSTALL_SKIPPED_RECENT_DUPLICATE', device }
   }
 
   const app = process.env.INBOUND_DEFAULT_INSTALL_APP || 'XCloud'
   const message = buildInstallMessage(app, device)
-  recentInstallByPhone.set(phone, { timestamp: Date.now(), device })
+  recentInstallByPhone.set(input.phone, { timestamp: Date.now(), device })
   const now = new Date().toISOString()
 
   if (dryRun) {
     await updateClientOperationalState({
-      client,
+      client: input.client,
       status: 'lead',
       metadataPatch: {
         install_sent_at: now,
         install_device: device,
-        install_last_message_id: metadataString(metadata, 'last_inbound_message_id') || undefined,
+        install_last_message_id: input.messageId || metadataString(metadata, 'last_inbound_message_id') || undefined,
         install_dry_run: true,
         install_status: 'dry_run',
+        active_flow_type: 'install',
+        welcome_flow_status: 'cancelled',
+        welcome_flow_cancelled_at: now,
+        welcome_cancel_reason: 'install_sent',
       },
     }).catch(() => null)
     await recordOperationalEvent('INSTALL_DRY_RUN', 'info', {
-      client,
-      phone,
+      client: input.client,
+      phone: input.phone,
       stage: 'contato',
       message: 'Guia de instalacao preparado em dry-run.',
       metadata: { flow: 'install', app, device },
@@ -183,22 +191,26 @@ async function maybeSendInstall(phone: string, text: string, client: Operational
     return { ok: true, dryRun: true, code: 'INSTALL_DRY_RUN', device, app, preview: message }
   }
 
-  const result = await sendText({ phone, message, dryRun: false, context: { flow: 'install_auto_reply', app, device, source: 'inbound_webhook' } })
+  const result = await sendText({ phone: input.phone, message, dryRun: false, context: { flow: 'install_auto_reply', app, device, source: 'inbound_webhook' } })
   const ok = Boolean(result.ok)
   await updateClientOperationalState({
-    client,
+    client: input.client,
     status: 'lead',
     metadataPatch: {
       install_sent_at: ok ? now : previousInstallAt || undefined,
       install_failed_at: ok ? undefined : now,
       install_device: device,
-      install_last_message_id: metadataString(metadata, 'last_inbound_message_id') || undefined,
+      install_last_message_id: input.messageId || metadataString(metadata, 'last_inbound_message_id') || undefined,
       install_status: ok ? 'sent' : 'failed',
+      active_flow_type: 'install',
+      welcome_flow_status: 'cancelled',
+      welcome_flow_cancelled_at: now,
+      welcome_cancel_reason: 'install_sent',
     },
   }).catch(() => null)
   await recordOperationalEvent(ok ? 'INSTALL_SENT' : 'FLOW_FAILED', ok ? 'success' : 'error', {
-    client,
-    phone,
+    client: input.client,
+    phone: input.phone,
     stage: 'contato',
     message: ok ? 'Guia de instalacao enviado.' : 'Falha ao enviar guia de instalacao.',
     metadata: { flow: 'install', app, device, code: result.code },
@@ -216,9 +228,25 @@ function startWelcomeInBackground(input: {
     try {
       const welcome = await dispatchWelcomeFlow({
         phone: input.phone,
-        client: { name: input.client?.name || undefined },
+        client: input.client,
         dryRun: undefined,
+        startedAt: input.startedAt,
+        messageId: input.messageId,
       })
+      if ((welcome as { cancelled?: boolean }).cancelled || (welcome as { code?: string }).code === 'WELCOME_CANCELLED') {
+        logInbound('WELCOME_CANCELLED', { phone: input.phone, welcome })
+        await updateClientOperationalState({
+          client: input.client,
+          status: 'lead',
+          metadataPatch: {
+            welcome_flow_status: 'cancelled',
+            welcome_flow_cancelled_at: new Date().toISOString(),
+            welcome_cancel_reason: (welcome as { cancelReason?: string }).cancelReason || 'cancelled',
+            welcome_last_message_id: input.messageId || undefined,
+          },
+        }).catch(() => null)
+        return
+      }
       if ((welcome as { skipped?: boolean }).skipped) {
         logInbound('WELCOME_SKIPPED_RECENT_HISTORY', { phone: input.phone, welcome })
         await updateClientOperationalState({
@@ -246,9 +274,12 @@ function startWelcomeInBackground(input: {
         status: 'lead',
         metadataPatch: {
           welcome_started_at: input.startedAt,
+          welcome_flow_started_at: input.startedAt,
+          welcome_flow_status: 'completed',
           welcome_sent_at: now,
           welcome_last_message_id: input.messageId || undefined,
           welcome_status: code,
+          active_flow_type: null,
         },
       }).catch(() => null)
       await recordOperationalEvent(code, code === 'WELCOME_SENT' ? 'success' : 'info', {
@@ -311,15 +342,15 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
   })
 
   if (operational.duplicate) {
-    logInbound('FLOW_SKIPPED_DUPLICATE', { phone: inbound.phone, messageId: inbound.messageId, source: 'supabase_metadata' })
-    await recordOperationalEvent('FLOW_SKIPPED_DUPLICATE', 'info', {
+    logInbound('INBOUND_IGNORED', { phone: inbound.phone, messageId: inbound.messageId, source: 'supabase_metadata' })
+    await recordOperationalEvent('INBOUND_IGNORED', 'info', {
       client: operational.client,
       phone: inbound.phone,
       stage: 'novo_lead',
       message: 'Inbound duplicado da Evolution ignorado por message_id persistente.',
       metadata: { message_id: inbound.messageId },
     })
-    return { ok: true, code: 'FLOW_SKIPPED_DUPLICATE', message: 'Mensagem inbound duplicada ignorada.', phone: maskPhone(inbound.phone) }
+    return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem inbound duplicada ignorada.', phone: maskPhone(inbound.phone) }
   }
 
   logInbound('INBOUND_MESSAGE_RECEIVED', {
@@ -335,6 +366,46 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     message: 'Inbound real recebido pelo Painel 2.',
     metadata: { event: inbound.event, message_id: inbound.messageId || null, has_text: Boolean(inbound.text) },
   })
+
+  const isDeviceIntent = looksLikeDeviceAnswer(inbound.text)
+  if (isDeviceIntent) {
+    const device = normalizeInstallDevice(inbound.text)
+    const flowClient = await cancelWelcomeFlow({
+      client: operational.client,
+      phone: inbound.phone,
+      reason: 'device_install_intent',
+      messageId: inbound.messageId || undefined,
+      device,
+    }).catch(() => operational.client)
+
+    const install = await maybeSendInstall({
+      phone: inbound.phone,
+      text: inbound.text,
+      client: flowClient || operational.client,
+      messageId: inbound.messageId || undefined,
+    })
+    if (!install) {
+      logInbound('INBOUND_IGNORED', { phone: inbound.phone, reason: 'install_disabled_or_unavailable', device })
+      return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem de aparelho detectada, mas auto-resposta de instalacao esta desativada.', phone: maskPhone(inbound.phone) }
+    }
+
+    const rawInstallCode = String((install as { code?: string }).code || '')
+    const installCode = (
+      rawInstallCode === 'INSTALL_SKIPPED_RECENT_DUPLICATE'
+        ? 'INSTALL_SKIPPED_RECENT_DUPLICATE'
+        : (install as { dryRun?: boolean }).dryRun ? 'INSTALL_DRY_RUN' : 'INSTALL_SENT'
+    ) as InboundDecisionCode
+    logInbound(installCode, { phone: inbound.phone, install })
+    return {
+      ok: true,
+      code: installCode,
+      message: rawInstallCode === 'INSTALL_SKIPPED_RECENT_DUPLICATE'
+        ? 'Instalacao recente ja registrada para este aparelho; nada reenviado.'
+        : 'Resposta de instalacao preparada/enviada.',
+      phone: maskPhone(inbound.phone),
+      install,
+    }
+  }
 
   const customer = await classifyPhoneForWelcome(inbound.phone)
   if (customer.kind === 'active_client') {
@@ -368,25 +439,6 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
       metadata: { reason: customer.reason },
     })
     return { ok: true, code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', message: 'Consulta cliente/teste indisponivel; falha fechada sem boas-vindas.', phone: maskPhone(inbound.phone), customer }
-  }
-
-  const install = await maybeSendInstall(inbound.phone, inbound.text, operational.client)
-  if (install) {
-    const rawInstallCode = String((install as { code?: string }).code || '')
-    const installCode = (
-      rawInstallCode === 'INSTALL_SKIPPED_RECENT_DUPLICATE'
-        ? 'INSTALL_SKIPPED_RECENT_DUPLICATE'
-        : (install as { dryRun?: boolean }).dryRun ? 'INSTALL_DRY_RUN' : 'INSTALL_SENT'
-    ) as InboundDecisionCode
-    logInbound(installCode, { phone: inbound.phone, install })
-    return {
-      ok: true,
-      code: installCode,
-      message: 'Resposta de instalacao preparada/enviada.',
-      phone: maskPhone(inbound.phone),
-      customer,
-      install,
-    }
   }
 
   if (!boolEnv(process.env.INBOUND_WELCOME_ENABLED, true)) {
@@ -468,8 +520,11 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     status: 'lead',
     metadataPatch: {
       welcome_started_at: startedAt,
+      welcome_flow_started_at: startedAt,
       welcome_last_message_id: inbound.messageId || undefined,
       welcome_status: 'WELCOME_STARTED',
+      welcome_flow_status: 'running',
+      active_flow_type: 'welcome',
     },
   }).catch(() => null)
   await recordOperationalEvent('WELCOME_STARTED', 'info', {
