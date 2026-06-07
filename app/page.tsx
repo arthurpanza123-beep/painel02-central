@@ -162,14 +162,14 @@ const FLOWS: Record<string, FlowConfig> = {
   ),
   xcloud_recreate_device: flow(
     "XCloud",
-    "Preview: recriar device XCloud com localizar, desativar, excluir, recriar e confirmar RELOAD.",
+    "Preview: recriar device XCloud com localizar, desativar, excluir, recriar e validar o vínculo.",
     [
       { state: "receiving", text: "Recriacao solicitada", duration: 400 },
       { state: "detecting", text: "Localizando device", duration: 600 },
       { state: "executing", text: "Simulando desativacao", duration: 650 },
       { state: "executing", text: "Simulando exclusao", duration: 650 },
       { state: "preparing", text: "Preparando recriacao", duration: 700 },
-      { state: "validating", text: "Confirmando RELOAD visual", duration: 550 },
+      { state: "validating", text: "Validando vínculo visual", duration: 550 },
       { state: "completed", text: "Recriacao simulada pronta", duration: 1800 },
     ],
     [
@@ -177,7 +177,7 @@ const FLOWS: Record<string, FlowConfig> = {
       { level: "info", code: "XCLOUD_DEVICE_FOUND", detail: "Device key lida do contexto" },
       { level: "info", code: "XCLOUD_DEACTIVATE_PREVIEW", detail: "Sem Playwright real aqui" },
       { level: "info", code: "XCLOUD_DELETE_PREVIEW", detail: "Sem exclusao real" },
-      { level: "success", code: "XCLOUD_RELOAD_PREVIEW", detail: "Checklist pronto" },
+      { level: "success", code: "XCLOUD_LINK_PREVIEW", detail: "Checklist pronto" },
     ],
   ),
   charge_customer: flow(
@@ -304,7 +304,7 @@ const FLOWS: Record<string, FlowConfig> = {
       { state: "executing", text: "Excluindo device", duration: 600 },
       { state: "preparing", text: "Recriando device", duration: 800 },
       { state: "executing", text: "Vinculando Xtream", duration: 700 },
-      { state: "validating", text: "Confirmando RELOAD", duration: 500 },
+      { state: "validating", text: "Validando vínculo", duration: 500 },
       { state: "completed", text: "Device XCloud recriado", duration: 2000 },
     ],
     logs: [
@@ -313,7 +313,7 @@ const FLOWS: Record<string, FlowConfig> = {
       { level: "info", code: "XCLOUD_DEACTIVATED", detail: "Device desativado com sucesso" },
       { level: "info", code: "XCLOUD_DELETED", detail: "Device excluido do sistema" },
       { level: "info", code: "XCLOUD_RECREATED", detail: "Novo device cadastrado" },
-      { level: "success", code: "XCLOUD_RELOAD_OK", detail: "RELOAD confirmado" },
+      { level: "success", code: "XCLOUD_LINK_OK", detail: "Vinculo confirmado" },
     ],
   },
   "falha-xcloud": {

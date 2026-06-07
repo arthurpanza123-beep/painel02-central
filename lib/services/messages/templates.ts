@@ -53,6 +53,12 @@ export interface MessageContext {
   expires_at?: string
   idempotency_key?: string
   audience?: 'operator' | 'customer' | string
+  provider_url?: string
+  providerUrl?: string
+  xcloud_remove_status?: string
+  xcloudRemoveStatus?: string
+  manual_close_required?: boolean | string
+  manualCloseRequired?: boolean | string
 }
 
 export interface FlowMediaMessage {
@@ -221,17 +227,31 @@ export function buildTestCreatedMessage(ctx: MessageContext = {}) {
 }
 
 export function buildTestExpiredOperatorMessage(ctx: MessageContext = {}) {
+  const manualCloseRequired = ctx.manual_close_required === true ||
+    ctx.manualCloseRequired === true ||
+    pick(ctx.manual_close_required, ctx.manualCloseRequired).toLowerCase() === 'true'
+  const providerUrl = pick(ctx.provider_url, ctx.providerUrl)
+  const xcloudStatus = pick(ctx.xcloud_remove_status, ctx.xcloudRemoveStatus)
+  const panel = pick(ctx.painel, ctx.panel)
+  const username = pick(ctx.usuario, ctx.username)
+
   return joinMessage([
     '⚠️ *Teste expirado*',
     '',
     boldField('Cliente', pick(ctx.cliente, ctx.clientName, 'Cliente')),
     boldField('Telefone', pick(ctx.clientPhone, ctx.phone)),
+    boldField('Usuário', username),
     boldField('App', ctx.app),
-    boldField('Painel', pick(ctx.painel, ctx.panel)),
-    boldField('Usuário', pick(ctx.usuario, ctx.username)),
+    boldField('Painel', panel),
+    boldField('Remoção XCloud', xcloudStatus),
     boldField('Expirou em', pick(ctx.expiredAt, ctx.expiresAt, ctx.dueAt, ctx.vencimento)),
+    manualCloseRequired ? '' : null,
+    manualCloseRequired ? `Precisa encerrar manualmente no painel ${panel || 'do provedor'} o usuário ${username || '-'}.` : null,
+    providerUrl ? '' : null,
+    providerUrl ? 'Painel do provedor:' : null,
+    providerUrl || null,
     '',
-    'Abrir no painel:',
+    'Abrir no Painel 1:',
     pick(ctx.link),
   ])
 }
@@ -447,7 +467,7 @@ export function buildSecondScreenMessage(ctx: MessageContext = {}) {
       ...credentials,
       '',
       'Abra o aplicativo na segunda TV e entre com os dados acima.',
-      isXcloud ? 'Depois de entrar, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : null,
+      null,
       '',
       'Se precisar, eu te ajudo na configuração. 🚀',
     ])
@@ -462,7 +482,7 @@ export function buildSecondScreenMessage(ctx: MessageContext = {}) {
     '',
     credentials.length ? ['*Credencial que será usada:*', ...credentials].join('\n') : null,
     '',
-    isXcloud ? 'Oriente *RELOAD* ou *RECARREGAR* depois que a segunda tela estiver liberada.' : null,
+    isXcloud ? 'Confira a liberação da segunda tela antes de orientar o cliente.' : null,
     isXcloud ? '' : null,
     'Confira a tela e os dados antes de orientar o cliente.',
   ])

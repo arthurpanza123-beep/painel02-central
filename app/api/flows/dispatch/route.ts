@@ -15,6 +15,16 @@ function isTrustedInternalRequest(request: Request) {
   return Boolean((realIp && isLoopbackIp(realIp)) || (firstForwarded && isLoopbackIp(firstForwarded)))
 }
 
+function booleanField(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value
+    const text = String(value ?? '').trim().toLowerCase()
+    if (text === 'true') return true
+    if (text === 'false') return false
+  }
+  return false
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
     flow?: FlowKey
@@ -67,6 +77,12 @@ export async function POST(request: Request) {
       expiresAt: String(test.expires_at || test.expiresAt || body.context?.expiresAt || body.context?.expires_at || ''),
       link: String(test.link || body.context?.link || ''),
       idempotency_key: String(body.idempotency_key || body.context?.idempotency_key || ''),
+      provider_url: String(test.provider_url || test.providerUrl || body.context?.provider_url || body.context?.providerUrl || ''),
+      providerUrl: String(test.providerUrl || test.provider_url || body.context?.providerUrl || body.context?.provider_url || ''),
+      xcloud_remove_status: String(test.xcloud_remove_status || test.xcloudRemoveStatus || body.context?.xcloud_remove_status || body.context?.xcloudRemoveStatus || ''),
+      xcloudRemoveStatus: String(test.xcloudRemoveStatus || test.xcloud_remove_status || body.context?.xcloudRemoveStatus || body.context?.xcloud_remove_status || ''),
+      manual_close_required: booleanField(test.manual_close_required, test.manualCloseRequired, body.context?.manual_close_required, body.context?.manualCloseRequired),
+      manualCloseRequired: booleanField(test.manualCloseRequired, test.manual_close_required, body.context?.manualCloseRequired, body.context?.manual_close_required),
     }
 
   const result = await dispatchFlow({
