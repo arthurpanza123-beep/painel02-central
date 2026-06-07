@@ -96,6 +96,7 @@ export type BuiltCredentials = {
   m3uUrl?: string
   hlsUrl?: string
   ssiptvUrl?: string
+  url?: string
   link?: string
   downloader?: string
   ntdown?: string
@@ -397,6 +398,7 @@ export function buildProviderCredentials(input: CredentialInput): BuiltCredentia
     m3uUrl: canBuildXtream ? buildM3uUrl(host, username, password, provider.m3uOutput || 'mpegts') : undefined,
     hlsUrl: canBuildXtream ? buildHlsUrl(host, username, password) : undefined,
     ssiptvUrl: canBuildXtream ? buildSsiptvUrl(host, username, password, provider) : undefined,
+    url: app.url,
     link: app.link,
     downloader: app.downloader,
     ntdown: app.ntdown,

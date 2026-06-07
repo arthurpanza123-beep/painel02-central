@@ -57,6 +57,8 @@ export interface MessageContext {
   providerUrl?: string
   xcloud_remove_status?: string
   xcloudRemoveStatus?: string
+  device_key?: string
+  deviceKey?: string
   manual_close_required?: boolean | string
   manualCloseRequired?: boolean | string
 }
@@ -129,9 +131,10 @@ function catalogCredentials(ctx: MessageContext): BuiltCredentials | null {
 }
 
 function credentialHeader(credentials: BuiltCredentials | null, ctx: MessageContext): string {
-  if (credentials?.providerCode) return `Provider: ${credentials.providerCode}`
-  if (credentials?.code) return `Codigo: ${credentials.code}`
-  if (credentials?.dns) return `DNS: ${credentials.dns}`
+  if (credentials?.fields.includes('provider') && credentials.providerCode) return `Provider: ${credentials.providerCode}`
+  if (credentials?.fields.includes('code') && credentials.code) return `Codigo: ${credentials.code}`
+  if (credentials?.fields.includes('dns') && credentials.dns) return `DNS: ${credentials.dns}`
+  if (credentials?.fields.includes('url') && credentials.url) return `URL: ${credentials.url}`
   const code = pick(ctx.codigo, ctx.code)
   if (code) return `Codigo: ${code}`
   const dns = pick(ctx.dns)
@@ -140,13 +143,25 @@ function credentialHeader(credentials: BuiltCredentials | null, ctx: MessageCont
 }
 
 function credentialLines(ctx: MessageContext): string[] {
+  if (isXcloudApp(ctx.app)) {
+    return [
+      optional('Host/DNS', pick(ctx.host, ctx.dns)),
+      optional('Usuario', pick(ctx.usuario, ctx.username)),
+      optional('Senha', pick(ctx.senha, ctx.password)),
+    ].filter((line): line is string => Boolean(line))
+  }
+
   const credentials = catalogCredentials(ctx)
+  const fields = credentials?.fields || []
   const header = credentialHeader(credentials, ctx)
   return [
     header || null,
+    fields.includes('name') ? optional('Nome', pick(ctx.cliente, ctx.clientName, credentials?.providerName)) : null,
+    fields.includes('url') && !header ? optional('URL', pick(credentials?.url, ctx.host)) : null,
+    fields.includes('dns') && !header ? optional('DNS', pick(ctx.dns, credentials?.dns)) : null,
+    fields.includes('host') ? optional('Host', pick(ctx.host, credentials?.host)) : null,
     optional('Usuario', pick(ctx.usuario, ctx.username, credentials?.username)),
     optional('Senha', pick(ctx.senha, ctx.password, credentials?.password)),
-    credentials?.host ? `Host: ${credentials.host}` : null,
   ].filter((line): line is string => Boolean(line))
 }
 
@@ -234,29 +249,67 @@ export function buildTestExpiredOperatorMessage(ctx: MessageContext = {}) {
   const xcloudStatus = pick(ctx.xcloud_remove_status, ctx.xcloudRemoveStatus)
   const panel = pick(ctx.painel, ctx.panel)
   const username = pick(ctx.usuario, ctx.username)
+  const app = pick(ctx.app, 'Aplicativo')
+  const clientName = pick(ctx.cliente, ctx.clientName, 'Cliente')
+  const deviceKey = pick(ctx.device_key, ctx.deviceKey)
   const xcloudStatusLower = xcloudStatus.toLowerCase()
-  const xcloudFailed = !manualCloseRequired && (xcloudStatusLower.includes('falh') || xcloudStatusLower.includes('pendente'))
+  const xcloudOk = isXcloudApp(app) && !manualCloseRequired && (
+    xcloudStatusLower.includes('removido') ||
+    xcloudStatusLower.includes('corretamente') ||
+    xcloudStatusLower.includes('already') ||
+    xcloudStatusLower.includes('sucesso') ||
+    xcloudStatusLower.includes('success')
+  )
+  const xcloudFailed = isXcloudApp(app) && !manualCloseRequired && !xcloudOk
+
+  if (xcloudOk) {
+    return joinMessage([
+      '⚠️ *Teste expirado*',
+      '',
+      boldField('Cliente', clientName),
+      boldField('App', app),
+      '*Remoção XCloud:* *removido corretamente*',
+      '',
+      'Figurinha enviada ao cliente.',
+      'Não precisa fazer nada no Yellow Box.',
+    ])
+  }
+
+  if (xcloudFailed) {
+    return joinMessage([
+      '⚠️ *Teste expirado — ação necessária*',
+      '',
+      boldField('Cliente', clientName),
+      boldField('App', app),
+      '*Remoção XCloud:* *falhou*',
+      '',
+      'Não consegui remover a device automaticamente.',
+      '',
+      'Remova manualmente:',
+      boldField('Device key', deviceKey || '-'),
+      boldField('Usuário', username || '-'),
+      boldField('Painel', panel || '-'),
+      '',
+      'Abrir XCloud:',
+      providerUrl || '-',
+      '',
+      'Figurinha já foi enviada ao cliente.',
+    ])
+  }
 
   return joinMessage([
-    '⚠️ *Teste expirado*',
+    '⚠️ *Teste expirado — encerrar no painel*',
     '',
-    boldField('Cliente', pick(ctx.cliente, ctx.clientName, 'Cliente')),
-    boldField('Telefone', pick(ctx.clientPhone, ctx.phone)),
-    boldField('Usuário', username),
-    boldField('App', ctx.app),
-    boldField('Painel', panel),
-    !manualCloseRequired ? boldField('Remoção XCloud', xcloudStatus) : null,
-    boldField('Expirou em', pick(ctx.expiredAt, ctx.expiresAt, ctx.dueAt, ctx.vencimento)),
+    boldField('Cliente', clientName),
+    boldField('App', app),
+    boldField('Usuário', username || '-'),
+    boldField('Painel', panel || '-'),
     '',
-    !manualCloseRequired && !xcloudFailed ? 'Teste XCloud encerrado automaticamente. Não precisa desativar usuário no Yellow Box.' : null,
-    xcloudFailed ? 'Remoção XCloud não confirmada. Verifique o teste no Painel 1 antes de qualquer ação manual.' : null,
-    manualCloseRequired ? `Precisa encerrar manualmente no painel ${panel || 'do provedor'} o usuário ${username || '-'}.` : null,
-    manualCloseRequired && providerUrl ? '' : null,
-    manualCloseRequired && providerUrl ? 'Painel do provedor:' : null,
-    manualCloseRequired && providerUrl ? providerUrl : null,
+    'Figurinha enviada ao cliente.',
+    'Encerre esse usuário no painel do provedor.',
     '',
-    'Abrir no Painel 1:',
-    pick(ctx.link),
+    'Abrir painel:',
+    providerUrl || '-',
   ])
 }
 
@@ -309,8 +362,7 @@ export function buildRenewalMessage(ctx: MessageContext = {}) {
 export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
   const isXcloud = isXcloudApp(app)
-  const credentials = catalogCredentials(ctx)
-  const providerAccess = isXcloud ? '' : credentialHeader(credentials, ctx)
+  const credentials = credentialLines(ctx).map(boldCredentialLine)
   const fields = [
     boldField('Cliente', pick(ctx.cliente, ctx.clientName)),
     boldField('Aplicativo', app),
@@ -318,13 +370,13 @@ export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
     boldField('Valor', pick(ctx.valor, ctx.amount)),
     boldField('Vencimento', pick(ctx.vencimento, ctx.dueAt)),
     boldField('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
-    providerAccess ? boldCredentialLine(providerAccess) : null,
   ].filter((line): line is string => Boolean(line))
 
   const baseCaption = [
     '*Acesso ativado com sucesso!* ✅',
     '',
     ...fields,
+    credentials.length ? ['', '*Dados de acesso:*', ...credentials].join('\n') : null,
     '',
     'Seu acesso já está liberado.',
     isXcloud ? 'Agora é só abrir o aplicativo e entrar com suas credenciais.' : 'Agora é só abrir o aplicativo e entrar com seus dados.',

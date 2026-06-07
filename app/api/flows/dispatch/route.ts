@@ -81,6 +81,8 @@ export async function POST(request: Request) {
       providerUrl: String(test.providerUrl || test.provider_url || body.context?.providerUrl || body.context?.provider_url || ''),
       xcloud_remove_status: String(test.xcloud_remove_status || test.xcloudRemoveStatus || body.context?.xcloud_remove_status || body.context?.xcloudRemoveStatus || ''),
       xcloudRemoveStatus: String(test.xcloudRemoveStatus || test.xcloud_remove_status || body.context?.xcloudRemoveStatus || body.context?.xcloud_remove_status || ''),
+      device_key: String(test.device_key || test.deviceKey || body.context?.device_key || body.context?.deviceKey || ''),
+      deviceKey: String(test.deviceKey || test.device_key || body.context?.deviceKey || body.context?.device_key || ''),
       manual_close_required: booleanField(test.manual_close_required, test.manualCloseRequired, body.context?.manual_close_required, body.context?.manualCloseRequired),
       manualCloseRequired: booleanField(test.manualCloseRequired, test.manual_close_required, body.context?.manualCloseRequired, body.context?.manual_close_required),
     }

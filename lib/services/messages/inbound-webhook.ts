@@ -5,6 +5,7 @@ import { buildInstallMessage, normalizeInstallDevice } from './install-templates
 import { classifyPhoneForWelcome, type CustomerLookupResult } from './inbound-classifier'
 import {
   ensureInboundLead,
+  inspectWelcomeOperationalHistory,
   isRecentIso,
   metadataString,
   recordOperationalEvent,
@@ -113,6 +114,16 @@ function looksLikeDeviceAnswer(text: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
   return /(samsung|sansung|lg|roku|android|google tv|tcl|tv box|box|fire|stick|iphone|ios|celular|telefone|smart stb|smart up|tv antiga|pc|computador|notebook)/.test(normalized)
+}
+
+function welcomeHistoryThreshold(): number {
+  const parsed = Number(process.env.WELCOME_HISTORY_MESSAGE_THRESHOLD || 5)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
+}
+
+function welcomeHistoryWindowMs(): number {
+  const hours = Number(process.env.WELCOME_HISTORY_WINDOW_HOURS || 72)
+  return (Number.isFinite(hours) && hours > 0 ? hours : 72) * 60 * 60 * 1000
 }
 
 async function maybeSendInstall(phone: string, text: string, client: OperationalClient | null): Promise<unknown | null> {
@@ -380,6 +391,44 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
 
   if (!boolEnv(process.env.INBOUND_WELCOME_ENABLED, true)) {
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Boas-vindas inbound desativada.', phone: maskPhone(inbound.phone), customer }
+  }
+
+  const operationalHistory = await inspectWelcomeOperationalHistory({
+    phone: inbound.phone,
+    client: operational.client,
+    metadata: operational.metadata,
+    windowMs: welcomeHistoryWindowMs(),
+    threshold: welcomeHistoryThreshold(),
+  }).catch((error) => ({
+    checked: false,
+    allowWelcome: false,
+    messageCount: 0,
+    threshold: welcomeHistoryThreshold(),
+    reasons: [error instanceof Error ? error.message : 'Falha ao consultar historico operacional.'],
+  }))
+
+  if (!operationalHistory.checked) {
+    logInbound('WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', { phone: inbound.phone, reason: operationalHistory.reasons.join('; ') })
+    await recordOperationalEvent('FLOW_FAILED', 'warning', {
+      client: operational.client,
+      phone: inbound.phone,
+      stage: 'novo_lead',
+      message: 'Historico operacional indisponivel; boas-vindas bloqueada.',
+      metadata: { flow: 'welcome', reasons: operationalHistory.reasons },
+    })
+    return { ok: true, code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', message: 'Historico operacional indisponivel; falha fechada sem boas-vindas.', phone: maskPhone(inbound.phone), customer }
+  }
+
+  if (!operationalHistory.allowWelcome) {
+    logInbound('WELCOME_SKIPPED_RECENT_HISTORY', { phone: inbound.phone, operationalHistory })
+    await recordOperationalEvent('FLOW_SKIPPED_DUPLICATE', 'info', {
+      client: operational.client,
+      phone: inbound.phone,
+      stage: 'novo_lead',
+      message: 'Historico operacional bloqueou boas-vindas.',
+      metadata: { flow: 'welcome', operational_history: operationalHistory },
+    })
+    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Historico operacional existente; boas-vindas nao enviada.', phone: maskPhone(inbound.phone), customer }
   }
 
   const welcomeAt = metadataString(operational.metadata, 'welcome_sent_at')

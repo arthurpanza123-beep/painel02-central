@@ -13,6 +13,14 @@ export interface OperationalClient {
   legacy_metadata?: JsonRecord | null
 }
 
+export interface WelcomeOperationalHistory {
+  checked: boolean
+  allowWelcome: boolean
+  messageCount: number
+  threshold: number
+  reasons: string[]
+}
+
 function config() {
   return {
     url: String(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
@@ -59,6 +67,11 @@ export function isRecentIso(value: unknown, windowMs: number, now = Date.now()) 
   return Number.isFinite(time) && now - time < windowMs
 }
 
+function numberFromMetadata(metadata: JsonRecord, key: string): number {
+  const value = Number(metadata[key])
+  return Number.isFinite(value) ? value : 0
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const cfg = config()
   if (!cfg.url || !cfg.key) throw new Error('Supabase server env ausente.')
@@ -85,6 +98,81 @@ export async function findClientByPhone(phone: string): Promise<OperationalClien
   return rows[0] || null
 }
 
+async function listOperationalRows(path: string): Promise<Array<Record<string, unknown>>> {
+  return request<Array<Record<string, unknown>>>(path).catch(() => {
+    throw new Error('Falha ao consultar historico operacional.')
+  })
+}
+
+export async function inspectWelcomeOperationalHistory(input: {
+  phone: string
+  client: OperationalClient | null
+  metadata?: JsonRecord
+  windowMs: number
+  threshold: number
+}): Promise<WelcomeOperationalHistory> {
+  if (!enabled()) {
+    return {
+      checked: false,
+      allowWelcome: false,
+      messageCount: 0,
+      threshold: input.threshold,
+      reasons: ['Supabase server env ausente.'],
+    }
+  }
+
+  const normalized = normalizePhone(input.phone)
+  if (!normalized || !input.client?.id) {
+    return {
+      checked: false,
+      allowWelcome: false,
+      messageCount: 0,
+      threshold: input.threshold,
+      reasons: ['Cliente operacional nao encontrado para consulta persistente.'],
+    }
+  }
+
+  const metadata = {
+    ...metadataOf(input.client),
+    ...(input.metadata || {}),
+  }
+  const status = String(input.client.status || metadata.status || metadata.client_status || '').toLowerCase()
+  const reasons: string[] = []
+  if (['active', 'test_active', 'paid', 'cliente_active'].includes(status)) {
+    reasons.push(`status_${status}`)
+  }
+  if (String(metadata.customer_status || metadata.test_status || '').toLowerCase().includes('active')) {
+    reasons.push('metadata_active_status')
+  }
+  if (isRecentIso(metadata.welcome_sent_at, input.windowMs) || isRecentIso(metadata.welcome_started_at, input.windowMs)) {
+    reasons.push('welcome_recent_24h')
+  }
+
+  const cutoffIso = new Date(Date.now() - input.windowMs).toISOString()
+  const [logs, pipelineEvents] = await Promise.all([
+    listOperationalRows(`logs?select=id,event,created_at&client_id=eq.${queryValue(input.client.id)}&created_at=gte.${queryValue(cutoffIso)}&order=created_at.desc&limit=30`),
+    listOperationalRows(`pipeline_events?select=id,event_type,created_at&entity_id=eq.${queryValue(input.client.id)}&created_at=gte.${queryValue(cutoffIso)}&order=created_at.desc&limit=30`),
+  ])
+
+  const metadataCount = Math.max(
+    numberFromMetadata(metadata, 'inbound_message_count'),
+    numberFromMetadata(metadata, 'message_count'),
+    numberFromMetadata(metadata, 'conversation_message_count')
+  )
+  const messageCount = Math.max(metadataCount, logs.length + pipelineEvents.length)
+  if (messageCount >= input.threshold) {
+    reasons.push('recent_history_threshold')
+  }
+
+  return {
+    checked: true,
+    allowWelcome: reasons.length === 0,
+    messageCount,
+    threshold: input.threshold,
+    reasons,
+  }
+}
+
 export async function ensureInboundLead(input: {
   phone: string
   name?: string
@@ -99,12 +187,14 @@ export async function ensureInboundLead(input: {
   const existing = await findClientByPhone(normalized)
   const previousMetadata = metadataOf(existing)
   const duplicate = Boolean(input.messageId && metadataString(previousMetadata, 'last_inbound_message_id') === input.messageId)
+  const previousInboundCount = numberFromMetadata(previousMetadata, 'inbound_message_count')
   const nextMetadata = {
     ...previousMetadata,
     last_inbound_message_id: input.messageId || metadataString(previousMetadata, 'last_inbound_message_id') || undefined,
     last_inbound_at: now,
     last_inbound_text: String(input.text || '').slice(0, 500),
     last_inbound_event: input.event || null,
+    inbound_message_count: previousInboundCount + (duplicate ? 0 : 1),
     inbound_source: 'painel2_evolution_webhook',
   }
 
