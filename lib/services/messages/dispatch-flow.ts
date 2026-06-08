@@ -4,7 +4,7 @@ import { sendMedia } from '../evolution/send-media'
 import { sendSticker } from '../evolution/send-sticker'
 import { sendText } from '../evolution/send-text'
 import { findClientByPhone, recordOperationalEvent, type PipelineStage } from './operational-store'
-import { buildFlowMessage, ALLOWED_FLOWS, type FlowKey, type MessageContext } from './templates'
+import { buildFlowMessage, validateFlowContext, ALLOWED_FLOWS, type FlowKey, type MessageContext } from './templates'
 
 export interface DispatchFlowInput {
   flow: FlowKey
@@ -111,6 +111,19 @@ export async function dispatchFlow(input: DispatchFlowInput) {
   const phone = input.flow === 'operator_test_expired'
     ? ''
     : input.phone || context.phone || (input.flow === 'test_expired' ? config.operatorWhatsapp : '')
+  const validation = validateFlowContext(input.flow, context)
+  if (!validation.ok) {
+    const result = {
+      ok: false,
+      dryRun,
+      code: validation.code,
+      message: validation.message,
+      missing_fields: validation.missing_fields,
+    }
+    console.warn(`[FLOW_DISPATCH_BLOCKED] ${input.flow} ${JSON.stringify({ code: validation.code, missing_fields: validation.missing_fields })}`)
+    await recordFlowExecution(input.flow, 'erro', { phone: phone || context.clientPhone || context.client_phone, context, idempotencyKey, code: validation.code, message: validation.message })
+    return result
+  }
   const message = buildFlowMessage(input.flow, context)
   console.log(`[FLOW_DISPATCH_REQUESTED] ${input.flow} ${JSON.stringify({ phone: phone ? 'present' : 'missing', recipients: operatorRecipients.length || undefined, dryRun, enabled: config.enabled, idempotency_key: idempotencyKey || undefined })}`)
   await recordFlowExecution(input.flow, 'executando', { phone: phone || context.clientPhone || context.client_phone, context, idempotencyKey, code: 'FLOW_DISPATCH_REQUESTED' })

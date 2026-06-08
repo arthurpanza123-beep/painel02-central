@@ -30,6 +30,8 @@ export interface MessageContext {
   provider_order_id?: string
   codigo?: string
   code?: string
+  provider_code?: string
+  providerCode?: string
   usuario?: string
   username?: string
   senha?: string
@@ -97,7 +99,8 @@ function boldField(label: string, value: unknown): string | null {
 function boldCredentialLine(line: string): string {
   const [label, ...rest] = line.split(':')
   const value = rest.join(':').trim()
-  const displayLabel = label.trim() === 'Usuario' ? 'Usuário' : label.trim() === 'Codigo' ? 'Código' : label.trim()
+  const normalizedLabel = label.trim()
+  const displayLabel = normalizedLabel === 'Usuario' ? 'Usuário' : normalizedLabel === 'Codigo' || normalizedLabel === 'Código' ? 'Code' : normalizedLabel
   return value ? `*${displayLabel}:* ${value}` : line
 }
 
@@ -111,6 +114,50 @@ function isXcloudApp(value: unknown): boolean {
 
 function isSmartTvApp(value: unknown): boolean {
   return /smart\s*(stb|up)|stb|smart\s*tv/i.test(pick(value))
+}
+
+const ACCESS_CREDENTIALS_NOT_FOUND_MESSAGE = 'Usuário e senha não foram encontrados no texto colado. Cole novamente os dados completos do painel antes de enviar ao cliente.'
+const MASKED_CREDENTIAL_RE = /^(?:\*+|x{3,}|X{3,}|-+|_+|•+|●+)$/
+
+function cleanCredential(value: unknown): string {
+  return String(value || '')
+    .trim()
+    .replace(/^[*_`"'\s]+/g, '')
+    .replace(/[*_`"',.;\s]+$/g, '')
+    .trim()
+}
+
+function invalidCredential(value: unknown): boolean {
+  const text = cleanCredential(value)
+  return !text || /^(?:null|undefined)$/i.test(text) || MASKED_CREDENTIAL_RE.test(text)
+}
+
+function formatDateBR(value: unknown): string {
+  const text = pick(value)
+  if (!text) return ''
+  const br = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (br) return `${br[1]}/${br[2]}/${br[3]}`
+  const date = new Date(text)
+  if (Number.isNaN(date.getTime())) return text
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(date)
+}
+
+function parseAmount(value: string): number | null {
+  const cleaned = value.replace(/[^\d,.-]/g, '').trim()
+  if (!cleaned) return null
+  const normalized = cleaned.includes(',')
+    ? cleaned.replace(/\./g, '').replace(',', '.')
+    : cleaned
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatCurrencyBRL(value: unknown): string {
+  const text = pick(value)
+  if (!text) return ''
+  const amount = typeof value === 'number' ? value : parseAmount(text)
+  if (amount === null) return text
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount).replace(/\u00a0/g, ' ')
 }
 
 function catalogCredentials(ctx: MessageContext): BuiltCredentials | null {
@@ -132,11 +179,11 @@ function catalogCredentials(ctx: MessageContext): BuiltCredentials | null {
 
 function credentialHeader(credentials: BuiltCredentials | null, ctx: MessageContext): string {
   if (credentials?.fields.includes('provider') && credentials.providerCode) return `Provider: ${credentials.providerCode}`
-  if (credentials?.fields.includes('code') && credentials.code) return `Codigo: ${credentials.code}`
+  if (credentials?.fields.includes('code') && credentials.code) return `Code: ${credentials.code}`
   if (credentials?.fields.includes('dns') && credentials.dns) return `DNS: ${credentials.dns}`
   if (credentials?.fields.includes('url') && credentials.url) return `URL: ${credentials.url}`
   const code = pick(ctx.codigo, ctx.code)
-  if (code) return `Codigo: ${code}`
+  if (code) return `Code: ${code}`
   const dns = pick(ctx.dns)
   if (dns) return `DNS: ${dns}`
   return ''
@@ -145,7 +192,7 @@ function credentialHeader(credentials: BuiltCredentials | null, ctx: MessageCont
 function credentialLines(ctx: MessageContext): string[] {
   if (isXcloudApp(ctx.app)) {
     return [
-      optional('Host/DNS', pick(ctx.host, ctx.dns)),
+      optional('Host', pick(ctx.host, ctx.dns)),
       optional('Usuario', pick(ctx.usuario, ctx.username)),
       optional('Senha', pick(ctx.senha, ctx.password)),
     ].filter((line): line is string => Boolean(line))
@@ -163,6 +210,46 @@ function credentialLines(ctx: MessageContext): string[] {
     optional('Usuario', pick(ctx.usuario, ctx.username, credentials?.username)),
     optional('Senha', pick(ctx.senha, ctx.password, credentials?.password)),
   ].filter((line): line is string => Boolean(line))
+}
+
+export type FlowValidationResult =
+  | { ok: true }
+  | { ok: false; code: string; message: string; missing_fields: string[] }
+
+function accessCredentialRequirements(ctx: MessageContext): Array<{ key: string; label: string; value: string }> {
+  const credentials = catalogCredentials(ctx)
+  const app = pick(ctx.app).toLowerCase()
+  const common = [
+    { key: 'username', label: 'Usuário', value: pick(ctx.usuario, ctx.username, credentials?.username) },
+    { key: 'password', label: 'Senha', value: pick(ctx.senha, ctx.password, credentials?.password) },
+  ]
+
+  if (isXcloudApp(ctx.app)) {
+    return [{ key: 'host', label: 'Host', value: pick(ctx.host, ctx.dns, credentials?.host) }, ...common]
+  }
+  if (/blessed/.test(app) || credentials?.fields.includes('provider')) {
+    return [{ key: 'provider', label: 'Provider', value: pick(ctx.provider_code, ctx.providerCode, credentials?.providerCode) }, ...common]
+  }
+  if (/playsim|play sim|assist/.test(app) || credentials?.fields.includes('code')) {
+    return [{ key: 'code', label: 'Code', value: pick(ctx.codigo, ctx.code, credentials?.code) }, ...common]
+  }
+  if (isSmartTvApp(ctx.app) || credentials?.fields.includes('dns')) {
+    return [{ key: 'dns', label: 'DNS', value: pick(ctx.dns, credentials?.dns, ctx.host) }, ...common]
+  }
+
+  return common
+}
+
+export function validateFlowContext(flow: FlowKey, ctx: MessageContext = {}): FlowValidationResult {
+  if (flow !== 'access_activated') return { ok: true }
+  const missing = accessCredentialRequirements(ctx).filter((item) => invalidCredential(item.value))
+  if (!missing.length) return { ok: true }
+  return {
+    ok: false,
+    code: 'ACCESS_CREDENTIALS_INCOMPLETE',
+    message: ACCESS_CREDENTIALS_NOT_FOUND_MESSAGE,
+    missing_fields: missing.map((item) => item.label),
+  }
 }
 
 function smartTvLines(ctx: MessageContext): string[] {
@@ -343,8 +430,8 @@ export function buildRenewalMessage(ctx: MessageContext = {}) {
   const fields = [
     boldField('Cliente', pick(ctx.cliente, ctx.clientName)),
     boldField('Plano', pick(ctx.plan, ctx.app)),
-    boldField('Valor', pick(ctx.valor, ctx.amount)),
-    boldField('Novo vencimento', pick(ctx.vencimento, ctx.dueAt)),
+    boldField('Valor', formatCurrencyBRL(pick(ctx.valor, ctx.amount))),
+    boldField('Novo vencimento', formatDateBR(pick(ctx.vencimento, ctx.dueAt))),
   ].filter((line): line is string => Boolean(line))
 
   return joinMessage([
@@ -367,8 +454,8 @@ export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
     boldField('Cliente', pick(ctx.cliente, ctx.clientName)),
     boldField('Aplicativo', app),
     boldField('Plano', ctx.plan),
-    boldField('Valor', pick(ctx.valor, ctx.amount)),
-    boldField('Vencimento', pick(ctx.vencimento, ctx.dueAt)),
+    boldField('Valor', formatCurrencyBRL(pick(ctx.valor, ctx.amount))),
+    boldField('Vencimento', formatDateBR(pick(ctx.vencimento, ctx.dueAt))),
     boldField('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
   ].filter((line): line is string => Boolean(line))
 
@@ -402,7 +489,7 @@ export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
       clientName: pick(ctx.cliente, ctx.clientName) || undefined,
       panel: pick(ctx.painel, ctx.panel, ctx.provider) || undefined,
       plan: pick(ctx.plan) || undefined,
-      dueAt: pick(ctx.vencimento, ctx.dueAt) || undefined,
+      dueAt: formatDateBR(pick(ctx.vencimento, ctx.dueAt)) || undefined,
     },
   } satisfies FlowMediaMessage
 }
