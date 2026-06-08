@@ -69,17 +69,16 @@ const blessedMedia = mediaPartsOf(buildFlowMessage('access_activated', {
   host: 'http://recordsway.shop:80',
 }))
 assert(validateFlowContext('access_activated', { ...base, app: 'Blessed Player' }).ok, 'Blessed deveria validar.')
-assert(blessed.includes('*Provider:* 1105'), 'Blessed deve enviar Provider 1105.')
-assert(blessed.includes('*Usuário:* 12345678'), 'Blessed deve enviar usuário.')
-assert(blessed.includes('*Senha:* 87654321'), 'Blessed deve enviar senha.')
-assert(!blessed.includes('*Host:*'), 'Blessed não deve enviar Host.')
+assert(blessed.includes('Provider: 1105'), 'Blessed deve enviar Provider 1105.')
+assert(blessed.includes('Usuário: 12345678'), 'Blessed deve enviar usuário.')
+assert(blessed.includes('Senha: 87654321'), 'Blessed deve enviar senha.')
+assert(!/Host:/i.test(blessed), 'Blessed não deve enviar Host.')
 assert(!/xtream/i.test(blessed), 'Blessed não deve mencionar Xtream.')
 assert(!/reload|recarregar/i.test(blessed), 'Blessed não deve mencionar RELOAD/RECARREGAR.')
-assert(blessed.includes('*Valor:* R$ 20,00'), 'Valor deve estar em BRL brasileiro.')
-assert(blessed.includes('*Vencimento:* 07/07/2026'), 'Vencimento deve estar em dd/mm/yyyy.')
-assert(blessedMedia.length === 2, 'Blessed acesso ativado deve enviar arte principal e arte de valores.')
+assert(blessed.includes('Valor: R$ 20,00'), 'Valor deve estar em BRL brasileiro.')
+assert(blessed.includes('Vencimento: 07/07/2026'), 'Vencimento deve estar em dd/mm/yyyy.')
+assert(blessedMedia.length === 1, 'Blessed acesso ativado deve enviar uma única mídia.')
 assert(blessedMedia.some((part) => part.fileName === 'acesso-ativado.png'), 'Blessed deve enviar arte principal.')
-assert(blessedMedia.some((part) => part.fileName === 'valores-central-play-plus.png'), 'Blessed deve enviar arte de valores.')
 
 const blessedTestMessage = buildFlowMessage('test_created', {
   ...base,
@@ -88,14 +87,15 @@ const blessedTestMessage = buildFlowMessage('test_created', {
 })
 const blessedTest = captionOf(blessedTestMessage)
 const blessedTestMedia = mediaPartsOf(blessedTestMessage)
-assert(blessedTest.includes('*Teste ativado com sucesso!* ✅'), 'Blessed teste deve usar titulo premium.')
-assert(blessedTest.includes('*Provider:* 1105'), 'Blessed teste deve enviar Provider 1105.')
-assert(blessedTest.includes('*Usuário:* 12345678'), 'Blessed teste deve enviar usuário.')
-assert(blessedTest.includes('*Senha:* 87654321'), 'Blessed teste deve enviar senha.')
-assert(!blessedTest.includes('*Host:*'), 'Blessed teste não deve enviar Host.')
+assert(blessedTest.includes('Teste ativado com sucesso! ✅'), 'Blessed teste deve usar titulo correto.')
+assert(blessedTest.includes('Provider: 1105'), 'Blessed teste deve enviar Provider 1105.')
+assert(blessedTest.includes('Usuário: 12345678'), 'Blessed teste deve enviar usuário.')
+assert(blessedTest.includes('Senha: 87654321'), 'Blessed teste deve enviar senha.')
+assert(!/Host:/i.test(blessedTest), 'Blessed teste não deve enviar Host.')
 assert(!/xtream/i.test(blessedTest), 'Blessed teste não deve mencionar Xtream.')
 assert(!/reload|recarregar/i.test(blessedTest), 'Blessed teste não deve mencionar RELOAD/RECARREGAR.')
-assert(blessedTestMedia.length === 2, 'Blessed teste deve enviar arte principal e arte de valores.')
+assert(blessedTestMedia.length === 1, 'Blessed teste deve enviar uma única mídia.')
+assert(blessedTestMedia[0].fileName === 'valores-central-play-plus.png', 'Blessed teste deve enviar a arte de valores.')
 
 const blessedUpdatedMessage = buildFlowMessage('access_updated', {
   ...base,
@@ -104,14 +104,14 @@ const blessedUpdatedMessage = buildFlowMessage('access_updated', {
 })
 const blessedUpdated = captionOf(blessedUpdatedMessage)
 const blessedUpdatedMedia = mediaPartsOf(blessedUpdatedMessage)
-assert(blessedUpdated.includes('*Acesso atualizado com sucesso!* ✅'), 'Blessed atualizado deve usar titulo premium.')
-assert(blessedUpdated.includes('*Provider:* 1105'), 'Blessed atualizado deve enviar Provider 1105.')
-assert(blessedUpdated.includes('*Usuário:* 12345678'), 'Blessed atualizado deve enviar usuário.')
-assert(blessedUpdated.includes('*Senha:* 87654321'), 'Blessed atualizado deve enviar senha.')
-assert(!blessedUpdated.includes('*Host:*'), 'Blessed atualizado não deve enviar Host.')
+assert(blessedUpdated.includes('Acesso atualizado com sucesso! ✅'), 'Blessed atualizado deve usar titulo correto.')
+assert(blessedUpdated.includes('Provider: 1105'), 'Blessed atualizado deve enviar Provider 1105.')
+assert(blessedUpdated.includes('Usuário: 12345678'), 'Blessed atualizado deve enviar usuário.')
+assert(blessedUpdated.includes('Senha: 87654321'), 'Blessed atualizado deve enviar senha.')
+assert(!/Host:/i.test(blessedUpdated), 'Blessed atualizado não deve enviar Host.')
 assert(!/xtream/i.test(blessedUpdated), 'Blessed atualizado não deve mencionar Xtream.')
 assert(!/reload|recarregar/i.test(blessedUpdated), 'Blessed atualizado não deve mencionar RELOAD/RECARREGAR.')
-assert(blessedUpdatedMedia.length === 2, 'Blessed atualizado deve enviar arte principal e arte de valores.')
+assert(blessedUpdatedMedia.length === 0, 'Blessed atualizado deve ser uma mensagem única sem mídia duplicada.')
 
 const playsim = captionOf(buildFlowMessage('access_activated', {
   ...base,
