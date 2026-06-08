@@ -77,7 +77,8 @@ export interface FlowMediaMessage {
   fallbackText?: string
 }
 
-export type FlowMessage = string | FlowMediaMessage
+export type FlowMessagePart = string | FlowMediaMessage
+export type FlowMessage = FlowMessagePart | FlowMessagePart[]
 
 function pick(...values: Array<unknown>): string {
   for (const value of values) {
@@ -111,6 +112,10 @@ function joinMessage(lines: Array<string | null | undefined>): string {
 
 function isXcloudApp(value: unknown): boolean {
   return /x\s*cloud|xcloud/i.test(pick(value))
+}
+
+function isBlessedApp(value: unknown): boolean {
+  return /blessed/i.test(pick(value))
 }
 
 function isSmartTvApp(value: unknown): boolean {
@@ -190,7 +195,25 @@ function credentialHeader(credentials: BuiltCredentials | null, ctx: MessageCont
   return ''
 }
 
+function blessedProviderCode(ctx: MessageContext): string {
+  const credentials = catalogCredentials(ctx)
+  return pick(ctx.provider_code, ctx.providerCode, credentials?.providerCode, credentials?.code, ctx.codigo, ctx.code, '1105')
+}
+
+function blessedCredentialLines(ctx: MessageContext): string[] {
+  const credentials = catalogCredentials(ctx)
+  return [
+    optional('Provider', blessedProviderCode(ctx)),
+    optional('Usuario', pick(ctx.usuario, ctx.username, credentials?.username)),
+    optional('Senha', pick(ctx.senha, ctx.password, credentials?.password)),
+  ].filter((line): line is string => Boolean(line))
+}
+
 function credentialLines(ctx: MessageContext): string[] {
+  if (isBlessedApp(ctx.app)) {
+    return blessedCredentialLines(ctx)
+  }
+
   if (isXcloudApp(ctx.app)) {
     return [
       optional('Host', pick(ctx.host, ctx.dns)),
@@ -228,7 +251,10 @@ function accessCredentialRequirements(ctx: MessageContext): Array<{ key: string;
   if (isXcloudApp(ctx.app)) {
     return [{ key: 'host', label: 'Host', value: pick(ctx.host, ctx.dns, credentials?.host) }, ...common]
   }
-  if (/blessed/.test(app) || credentials?.fields.includes('provider')) {
+  if (/blessed/.test(app)) {
+    return [{ key: 'provider', label: 'Provider', value: blessedProviderCode(ctx) }, ...common]
+  }
+  if (credentials?.fields.includes('provider')) {
     return [{ key: 'provider', label: 'Provider', value: pick(ctx.provider_code, ctx.providerCode, credentials?.providerCode) }, ...common]
   }
   if (/playsim|play sim|assist/.test(app) || credentials?.fields.includes('code')) {
@@ -277,6 +303,77 @@ export const TEST_VALUES_IMAGE_URL = 'https://raw.githubusercontent.com/arthurpa
 export const TEST_EXPIRED_STICKER_URL = process.env.TEST_EXPIRED_STICKER_URL || 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/figu.webp'
 export const ACCESS_ACTIVATED_IMAGE_URL = process.env.ACCESS_ACTIVATED_IMAGE_URL || 'https://raw.githubusercontent.com/arthurpanza123-beep/public/main/ativado.png'
 
+function buildValuesImageMedia(ctx: MessageContext, flow: FlowKey, caption = ''): FlowMediaMessage {
+  return {
+    kind: 'media',
+    mediaUrl: TEST_VALUES_IMAGE_URL,
+    caption,
+    type: 'image',
+    mimetype: 'image/png',
+    fileName: 'valores-central-play-plus.png',
+    context: {
+      flow,
+      app: pick(ctx.app) || undefined,
+      clientName: pick(ctx.cliente, ctx.clientName) || undefined,
+      mediaKind: 'values_image',
+      test_id: pick(ctx.testId, ctx.test_id, ctx.id) || undefined,
+    },
+  }
+}
+
+function buildBlessedPremiumMedia(ctx: MessageContext = {}, flow: 'test_created' | 'access_activated' | 'access_updated'): FlowMediaMessage[] {
+  const app = pick(ctx.app, 'Blessed Player')
+  const clientName = pick(ctx.cliente, ctx.clientName, 'Cliente')
+  const credentials = blessedCredentialLines(ctx).map(boldCredentialLine)
+  const title = flow === 'test_created'
+    ? '*Teste ativado com sucesso!* ✅'
+    : flow === 'access_updated'
+      ? '*Acesso atualizado com sucesso!* ✅'
+      : '*Acesso ativado com sucesso!* ✅'
+  const fields = [
+    boldField('Cliente', clientName),
+    boldField('Aplicativo', app),
+    flow === 'test_created' ? boldField('Pedido', shortTestPedido(ctx)) : null,
+    flow !== 'test_created' ? boldField('Plano', ctx.plan) : null,
+    flow !== 'test_created' ? boldField('Valor', formatCurrencyBRL(pick(ctx.valor, ctx.amount))) : null,
+    flow !== 'test_created' ? boldField('Vencimento', formatDateBR(pick(ctx.vencimento, ctx.dueAt))) : null,
+  ].filter((line): line is string => Boolean(line))
+  const caption = joinMessage([
+    title,
+    '',
+    ...fields,
+    credentials.length ? ['', '*Dados de acesso:*', ...credentials].join('\n') : null,
+    '',
+    flow === 'access_updated' ? 'Seu acesso foi atualizado.' : 'Seu acesso já está liberado.',
+    'Agora é só abrir o aplicativo e entrar com os dados acima.',
+    '',
+    'Se precisar, eu te ajudo na configuração. 🚀',
+  ])
+  const valuesCaption = flow === 'test_created'
+    ? 'Gostando da qualidade, é só escolher um dos planos da arte que eu ativo no mesmo atendimento. 🍿'
+    : 'Segue também a arte de valores da Central Play Plus para consulta de planos e renovações.'
+
+  return [
+    {
+      kind: 'media',
+      mediaUrl: ACCESS_ACTIVATED_IMAGE_URL,
+      caption,
+      type: 'image',
+      mimetype: 'image/png',
+      fileName: flow === 'test_created' ? 'teste-ativado.png' : 'acesso-ativado.png',
+      fallbackText: caption,
+      context: {
+        flow,
+        app,
+        clientName,
+        provider: blessedProviderCode(ctx),
+        mediaKind: 'main_image',
+      },
+    },
+    buildValuesImageMedia(ctx, flow, valuesCaption),
+  ]
+}
+
 export function buildXcloudTestCreatedMedia(ctx: MessageContext = {}): FlowMediaMessage {
   const clientName = pick(ctx.cliente, ctx.clientName, 'Cliente')
   const pedido = shortTestPedido(ctx)
@@ -316,6 +413,7 @@ export function buildTestCreatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
   const isXcloud = isXcloudApp(app)
   if (isXcloud) return buildXcloudTestCreatedMedia(ctx)
+  if (isBlessedApp(app)) return buildBlessedPremiumMedia(ctx, 'test_created')
   const credentials = credentialLines(ctx)
 
   return [
@@ -449,6 +547,8 @@ export function buildRenewalMessage(ctx: MessageContext = {}) {
 
 export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
+  if (isBlessedApp(app)) return buildBlessedPremiumMedia(ctx, 'access_activated')
+
   const isXcloud = isXcloudApp(app)
   const credentials = credentialLines(ctx).map(boldCredentialLine)
   const fields = [
@@ -497,6 +597,8 @@ export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
 
 export function buildAccessUpdatedMessage(ctx: MessageContext = {}) {
   const app = pick(ctx.app, 'Aplicativo')
+  if (isBlessedApp(app)) return buildBlessedPremiumMedia(ctx, 'access_updated')
+
   const isXcloud = isXcloudApp(app)
   const credentials = credentialLines(ctx).map(boldCredentialLine)
 

@@ -4,7 +4,7 @@ import { sendMedia } from '../evolution/send-media'
 import { sendSticker } from '../evolution/send-sticker'
 import { sendText } from '../evolution/send-text'
 import { findClientByPhone, recordOperationalEvent, type PipelineStage } from './operational-store'
-import { buildFlowMessage, validateFlowContext, ALLOWED_FLOWS, type FlowKey, type MessageContext } from './templates'
+import { buildFlowMessage, validateFlowContext, ALLOWED_FLOWS, type FlowKey, type FlowMessage, type FlowMessagePart, type MessageContext } from './templates'
 
 export interface DispatchFlowInput {
   flow: FlowKey
@@ -21,6 +21,78 @@ const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000
 function safeDispatchContext(context: Record<string, unknown>): Record<string, unknown> {
   const blocked = new Set(['password', 'senha', 'username', 'usuario', 'host', 'dns', 'token', 'apiKey', 'api_key'])
   return Object.fromEntries(Object.entries(context).filter(([key]) => !blocked.has(key)))
+}
+
+function previewPart(flow: FlowKey, message: FlowMessagePart) {
+  return typeof message === 'string'
+    ? message
+    : {
+        mediaUrl: message.mediaUrl,
+        caption: message.caption,
+        flow,
+        app: message.context.app,
+        type: message.type,
+        fileName: message.fileName,
+        mediaKind: message.context.mediaKind,
+        fallbackText: message.fallbackText,
+      }
+}
+
+function previewMessage(flow: FlowKey, message: FlowMessage) {
+  return Array.isArray(message)
+    ? message.map((part) => previewPart(flow, part))
+    : previewPart(flow, message)
+}
+
+async function sendMessagePart(input: {
+  flow: FlowKey
+  phone: string
+  part: FlowMessagePart
+  dryRun: boolean
+  context: MessageContext
+}) {
+  const { flow, phone, part, dryRun, context } = input
+
+  if (typeof part === 'string') {
+    return sendText({ phone, message: part, dryRun, context: safeDispatchContext({ flow, ...context }) })
+  }
+
+  const result = part.type === 'sticker'
+    ? await sendSticker({
+        phone,
+        stickerUrl: part.mediaUrl,
+        dryRun,
+        context: part.context,
+      })
+    : await sendMedia({
+        phone,
+        mediaUrl: part.mediaUrl,
+        caption: part.caption,
+        type: part.type,
+        mimetype: part.mimetype,
+        fileName: part.fileName,
+        dryRun,
+        context: part.context,
+      })
+
+  if (flow === 'test_expired' && part.type === 'sticker') {
+    console.log(`[${result.ok ? 'TEST_EXPIRED_STICKER_SENT' : 'TEST_EXPIRED_STICKER_FAILED'}] ${JSON.stringify({ ok: result.ok, dryRun: result.dryRun, code: result.code, phone: result.phone })}`)
+  }
+
+  if (!result.ok && !result.dryRun && part.fallbackText) {
+    const fallback = await sendText({
+      phone,
+      message: part.fallbackText,
+      dryRun,
+      context: safeDispatchContext({ flow, fallbackFrom: part.type, ...context }),
+    })
+    if (flow === 'test_expired') {
+      console.log(`[TEST_EXPIRED_STICKER_FAILED] fallback=${fallback.code} ${JSON.stringify({ ok: fallback.ok, dryRun: fallback.dryRun, phone: fallback.phone })}`)
+    }
+    return { ...fallback, mediaResult: result }
+  }
+
+  return result
 }
 
 function assertOperatorOnly(phone: string, dryRun: boolean, operatorPhones: string[]) {
@@ -127,16 +199,7 @@ export async function dispatchFlow(input: DispatchFlowInput) {
   const message = buildFlowMessage(input.flow, context)
   console.log(`[FLOW_DISPATCH_REQUESTED] ${input.flow} ${JSON.stringify({ phone: phone ? 'present' : 'missing', recipients: operatorRecipients.length || undefined, dryRun, enabled: config.enabled, idempotency_key: idempotencyKey || undefined })}`)
   await recordFlowExecution(input.flow, 'executando', { phone: phone || context.clientPhone || context.client_phone, context, idempotencyKey, code: 'FLOW_DISPATCH_REQUESTED' })
-  const preview = typeof message === 'string'
-    ? message
-    : {
-        mediaUrl: message.mediaUrl,
-        caption: message.caption,
-        flow: input.flow,
-        app: message.context.app,
-        type: message.type,
-        fallbackText: message.fallbackText,
-      }
+  const preview = previewMessage(input.flow, message)
 
   if (input.flow === 'operator_test_expired') {
     if (typeof message !== 'string') {
@@ -201,40 +264,34 @@ export async function dispatchFlow(input: DispatchFlowInput) {
     return { ok: false, dryRun: false, code: guard.code, message: guard.message, preview }
   }
 
-  if (typeof message !== 'string') {
-    const result = message.type === 'sticker'
-      ? await sendSticker({
-          phone,
-          stickerUrl: message.mediaUrl,
-          dryRun,
-          context: message.context,
-        })
-      : await sendMedia({
-          phone,
-          mediaUrl: message.mediaUrl,
-          caption: message.caption,
-          type: message.type,
-          mimetype: message.mimetype,
-          fileName: message.fileName,
-          dryRun,
-          context: message.context,
-        })
-
-    if (input.flow === 'test_expired' && message.type === 'sticker') {
-      console.log(`[${result.ok ? 'TEST_EXPIRED_STICKER_SENT' : 'TEST_EXPIRED_STICKER_FAILED'}] ${JSON.stringify({ ok: result.ok, dryRun: result.dryRun, code: result.code, phone: result.phone })}`)
+  if (Array.isArray(message)) {
+    const results = []
+    for (const [index, part] of message.entries()) {
+      const result = await sendMessagePart({ flow: input.flow, phone, part, dryRun, context })
+      results.push({ index, ...result })
+      if (!result.ok && !result.dryRun) break
     }
 
+    const ok = results.every((result) => result.ok || result.dryRun)
+    const allDryRun = results.every((result) => result.dryRun)
+    const sequenceResult = {
+      ok,
+      dryRun: allDryRun,
+      code: ok ? 'FLOW_SEQUENCE_SENT' : 'FLOW_SEQUENCE_FAILED',
+      message: ok ? 'Sequencia de mensagens processada.' : 'Falha em uma ou mais mensagens da sequencia.',
+      results,
+      preview,
+    }
+    if (ok && idempotencyKey) dispatchIdempotency.set(idempotencyKey, { sentAt: Date.now(), result: sequenceResult })
+    await recordFlowExecution(input.flow, ok ? 'concluido' : 'erro', { phone, context, idempotencyKey, code: sequenceResult.code, message: sequenceResult.message })
+    return sequenceResult
+  }
+
+  if (typeof message !== 'string') {
+    const result = await sendMessagePart({ flow: input.flow, phone, part: message, dryRun, context })
+
     if (!result.ok && !result.dryRun && message.fallbackText) {
-      const fallback = await sendText({
-        phone,
-        message: message.fallbackText,
-        dryRun,
-        context: safeDispatchContext({ flow: input.flow, fallbackFrom: message.type, ...context }),
-      })
-      if (input.flow === 'test_expired') {
-        console.log(`[TEST_EXPIRED_STICKER_FAILED] fallback=${fallback.code} ${JSON.stringify({ ok: fallback.ok, dryRun: fallback.dryRun, phone: fallback.phone })}`)
-      }
-      const fallbackResult = { ...fallback, mediaResult: result, preview }
+      const fallbackResult = { ...result, preview }
       if (fallbackResult.ok && idempotencyKey) dispatchIdempotency.set(idempotencyKey, { sentAt: Date.now(), result: fallbackResult })
       await recordFlowExecution(input.flow, fallbackResult.ok ? 'concluido' : 'erro', { phone, context, idempotencyKey, code: fallbackResult.code, message: fallbackResult.message })
       return fallbackResult
