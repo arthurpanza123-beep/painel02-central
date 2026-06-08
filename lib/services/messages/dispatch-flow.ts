@@ -49,7 +49,7 @@ function pruneIdempotencyCache() {
 function stageForFlow(flow: FlowKey): PipelineStage | undefined {
   if (flow === 'test_created') return 'teste_gerado'
   if (flow === 'test_expired' || flow === 'operator_test_expired') return 'testando'
-  if (flow === 'access_activated' || flow === 'renewal_created') return 'pagou'
+  if (flow === 'access_activated' || flow === 'access_updated' || flow === 'renewal_created') return 'pagou'
   if (flow === 'install_requested') return 'contato'
   return undefined
 }

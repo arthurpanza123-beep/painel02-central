@@ -6,6 +6,7 @@ export type FlowKey =
   | 'test_expired'
   | 'operator_test_expired'
   | 'access_activated'
+  | 'access_updated'
   | 'renewal_created'
   | 'install_requested'
   | 'app_swap'
@@ -241,7 +242,7 @@ function accessCredentialRequirements(ctx: MessageContext): Array<{ key: string;
 }
 
 export function validateFlowContext(flow: FlowKey, ctx: MessageContext = {}): FlowValidationResult {
-  if (flow !== 'access_activated') return { ok: true }
+  if (flow !== 'access_activated' && flow !== 'access_updated') return { ok: true }
   const missing = accessCredentialRequirements(ctx).filter((item) => invalidCredential(item.value))
   if (!missing.length) return { ok: true }
   return {
@@ -494,6 +495,29 @@ export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
   } satisfies FlowMediaMessage
 }
 
+export function buildAccessUpdatedMessage(ctx: MessageContext = {}) {
+  const app = pick(ctx.app, 'Aplicativo')
+  const isXcloud = isXcloudApp(app)
+  const credentials = credentialLines(ctx).map(boldCredentialLine)
+
+  return joinMessage([
+    '*Acesso atualizado com sucesso!* ✅',
+    '',
+    boldField('Cliente', pick(ctx.cliente, ctx.clientName)),
+    boldField('Aplicativo', app),
+    boldField('Painel', pick(ctx.painel, ctx.panel, ctx.provider)),
+    '',
+    credentials.length ? ['*Dados de acesso:*', ...credentials].join('\n') : null,
+    '',
+    'Seu acesso foi atualizado.',
+    'Agora é só abrir o aplicativo e entrar com os novos dados.',
+    '',
+    isXcloud ? 'Se precisar, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : null,
+    isXcloud ? '' : null,
+    'Se precisar, eu te ajudo na configuração. 🚀',
+  ])
+}
+
 export const INSTALL_TEMPLATES: Record<string, string> = {
   lg: [
     'Perfeito. Para instalar XCloud TV na TV LG:',
@@ -647,6 +671,7 @@ export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}): FlowM
     case 'test_expired': return pick(ctx.phone) ? buildTestExpiredCustomerMessage(ctx) : buildTestExpiredOperatorMessage(ctx)
     case 'operator_test_expired': return buildTestExpiredOperatorMessage(ctx)
     case 'access_activated': return buildAccessActivatedMessage(ctx)
+    case 'access_updated': return buildAccessUpdatedMessage(ctx)
     case 'renewal_created': return buildRenewalMessage(ctx)
     case 'install_requested': return buildInstallMessage(ctx)
     case 'app_swap': return buildAppSwapMessage(ctx)
@@ -655,4 +680,4 @@ export function buildFlowMessage(flow: FlowKey, ctx: MessageContext = {}): FlowM
   }
 }
 
-export const ALLOWED_FLOWS: FlowKey[] = ['test_created', 'test_expired', 'operator_test_expired', 'access_activated', 'renewal_created', 'install_requested', 'app_swap', 'second_screen', 'problem_created']
+export const ALLOWED_FLOWS: FlowKey[] = ['test_created', 'test_expired', 'operator_test_expired', 'access_activated', 'access_updated', 'renewal_created', 'install_requested', 'app_swap', 'second_screen', 'problem_created']
