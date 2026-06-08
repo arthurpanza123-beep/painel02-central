@@ -349,8 +349,12 @@ function buildBlessedCaption(ctx: MessageContext = {}, flow: 'test_created' | 'a
     ...fields,
     credentials.length ? ['', 'Dados de acesso:', '', ...credentials].join('\n') : null,
     '',
-    flow === 'access_updated' ? 'Seu acesso foi atualizado.' : 'Seu acesso já está liberado.',
-    'Agora é só abrir o aplicativo e entrar com os dados acima.',
+    flow === 'test_created'
+      ? 'Abra o aplicativo e entre com os dados acima.'
+      : flow === 'access_updated'
+        ? 'Seu acesso foi atualizado.'
+        : 'Seu acesso já está liberado.',
+    flow === 'test_created' ? null : 'Agora é só abrir o aplicativo e entrar com os dados acima.',
     '',
     'Se precisar, eu te ajudo na configuração. 🚀',
   ])
