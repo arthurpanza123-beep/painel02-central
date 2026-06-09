@@ -4,27 +4,10 @@ import { maskPhone } from '@/lib/services/evolution/mask'
 import { normalizePhone } from '@/lib/services/evolution/normalize-phone'
 import { sendText } from '@/lib/services/evolution/send-text'
 import { ensureInboundLead, isRecentIso, metadataString, recordOperationalEvent, updateClientOperationalState } from '@/lib/services/messages/operational-store'
+import { authorizeProspectionRecipient, prospectionRecipientConfig } from '@/lib/services/messages/prospection-authorize'
 import { buildInstallMessage } from '@/lib/services/messages/install-templates'
 
 const INSTALL_TTL_MS = 24 * 60 * 60 * 1000
-
-function listEnv(value: string | undefined) {
-  return String(value || '').split(',').map((item) => normalizePhone(item)).filter(Boolean)
-}
-
-function prospectionConfig() {
-  return {
-    instance: String(process.env.PROSPECTION_EVOLUTION_INSTANCE || process.env.EVOLUTION_PROSPECTION_INSTANCE || 'centralplay-leads').trim(),
-    connectedPhone: normalizePhone(process.env.PROSPECTION_CONNECTED_INSTANCE_PHONE || ''),
-    allowedPhones: Array.from(new Set([
-      ...listEnv(process.env.PROSPECTION_REAL_ALLOWED_RECIPIENTS),
-      ...listEnv(process.env.PROSPECTION_REAL_ALLOWED_PHONES),
-      ...listEnv(process.env.OPERATOR_WHATSAPP_LIST),
-      normalizePhone(process.env.OPERATOR_WHATSAPP || ''),
-    ].filter(Boolean))),
-    dryRun: ['1', 'true', 'yes', 'on'].includes(String(process.env.PANEL2_DRY_RUN_FOR_PROSPECTION || '').toLowerCase()),
-  }
-}
 
 function resolveProspectionTarget(body: { phone?: string; customerPhone?: string; to?: string; recipient?: string; client?: { phone?: string } }) {
   const entries = [
@@ -47,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, code: 'INVALID_JSON', message: 'Envie JSON valido.' }, { status: 400 })
   }
   const source = String(body.source || '').trim()
-  const prospection = prospectionConfig()
+  const prospection = prospectionRecipientConfig()
   const target = source === 'prospection' ? resolveProspectionTarget(body) : { phone: normalizePhone(body.phone || body.customerPhone || body.client?.phone || ''), unique: [], normalized: [] }
   const phone = target.phone
   if (!phone) {
@@ -65,13 +48,16 @@ export async function POST(request: Request) {
   const message = buildInstallMessage(body.app, body.device)
   const idempotencyKey = String(body.idempotencyKey || body.idempotency_key || '').trim()
   if (source === 'prospection') {
+    const authorization = await authorizeProspectionRecipient(phone, 'install')
     const logBase = {
       source,
       flow: 'install',
       requestedPhone: body.phone || body.customerPhone || body.to || body.recipient || body.client?.phone || null,
       finalRecipientPhone: phone,
       operatorOnly: true,
-      allowed: prospection.allowedPhones.includes(phone),
+      allowed: authorization.allowed,
+      authorizationCode: authorization.code,
+      allowImportedRealRecipients: prospection.allowImportedRealRecipients,
       idempotencyKey,
       instance: prospection.instance,
       fields: target.normalized,
@@ -85,9 +71,9 @@ export async function POST(request: Request) {
       await recordOperationalEvent('PANEL2_BLOCKED_SELF_TARGET', 'error', { phone, stage: 'contato', message: 'Destino e o numero conectado da prospeccao.', metadata: logBase }).catch(() => null)
       return NextResponse.json({ ok: false, code: 'PANEL2_BLOCKED_SELF_TARGET', message: 'Destino bloqueado: self-target.', ...logBase }, { status: 400 })
     }
-    if (!prospection.allowedPhones.includes(phone)) {
+    if (!authorization.allowed) {
       await recordOperationalEvent('PANEL2_BLOCKED_NOT_ALLOWLISTED', 'error', { phone, stage: 'contato', message: 'Destino de prospeccao fora da allowlist.', metadata: logBase }).catch(() => null)
-      return NextResponse.json({ ok: false, code: 'PANEL2_BLOCKED_NOT_ALLOWLISTED', message: 'Destino fora da allowlist.', ...logBase }, { status: 400 })
+      return NextResponse.json({ ok: false, code: authorization.code || 'PANEL2_BLOCKED_NOT_ALLOWLISTED', message: authorization.reason || 'Destino fora da allowlist.', ...logBase }, { status: 400 })
     }
   }
   const ensured = source === 'prospection'
