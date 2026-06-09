@@ -2,11 +2,10 @@ import { getEvolutionConfig } from '../evolution/config'
 import { maskPhone, sanitizeForLog } from '../evolution/mask'
 import { normalizePhone } from '../evolution/normalize-phone'
 import { buildInstallMessage, normalizeInstallDevice } from './install-templates'
-import { classifyPhoneForWelcome, type CustomerLookupResult } from './inbound-classifier'
+import { shouldSendWelcomeToPhone, type WelcomeEligibilityResult } from './inbound-classifier'
 import {
   cancelWelcomeFlow,
   ensureInboundLead,
-  inspectWelcomeOperationalHistory,
   isRecentIso,
   metadataString,
   recordOperationalEvent,
@@ -20,8 +19,10 @@ type InboundDecisionCode =
   | 'INBOUND_IGNORED'
   | 'WELCOME_SKIPPED_CLIENT_EXISTS'
   | 'WELCOME_SKIPPED_TEST_EXISTS'
+  | 'WELCOME_SKIPPED_EXISTING_CONTACT'
   | 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE'
   | 'WELCOME_SKIPPED_RECENT_HISTORY'
+  | 'WELCOME_SKIPPED_NOT_FIRST_CONTACT'
   | 'WELCOME_STARTED'
   | 'WELCOME_SENT'
   | 'WELCOME_DRY_RUN'
@@ -36,7 +37,7 @@ export interface InboundWebhookResult {
   code: InboundDecisionCode
   message: string
   phone?: string
-  customer?: CustomerLookupResult
+  welcomeEligibility?: WelcomeEligibilityResult
   welcome?: unknown
   install?: unknown
 }
@@ -109,22 +110,39 @@ function logInbound(code: string, payload: Record<string, unknown>) {
   console.log(`[${code}] ${JSON.stringify(sanitizeForLog(payload))}`)
 }
 
+function welcomeSkipMessage(eligibility?: WelcomeEligibilityResult | null): string {
+  if (!eligibility) return 'Boas-vindas bloqueada por falta de decisao confiavel.'
+  if (eligibility.code === 'WELCOME_SKIPPED_CLIENT_EXISTS') return 'Telefone ja salvo como cliente active; boas-vindas nao enviada.'
+  if (eligibility.code === 'WELCOME_SKIPPED_TEST_EXISTS') return 'Telefone ja salvo como test_active; boas-vindas nao enviada.'
+  if (eligibility.code === 'WELCOME_SKIPPED_EXISTING_CONTACT') return 'Telefone ja existe/salvo; boas-vindas nao enviada.'
+  if (eligibility.code === 'WELCOME_SKIPPED_RECENT_HISTORY') return 'Historico recente/conversa existente; boas-vindas nao enviada.'
+  if (eligibility.code === 'WELCOME_SKIPPED_NOT_FIRST_CONTACT') return 'Mensagem nao parece primeiro contato real; boas-vindas nao enviada.'
+  if (eligibility.code === 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE') return 'Consulta de cliente/historico indisponivel; falha fechada sem boas-vindas.'
+  return eligibility.reason || 'Boas-vindas bloqueada.'
+}
+
+async function recordWelcomeSkip(input: {
+  code: InboundDecisionCode
+  phone: string
+  client: OperationalClient | null
+  eligibility?: WelcomeEligibilityResult | null
+  message?: string
+}) {
+  await recordOperationalEvent(input.code, input.code === 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE' ? 'warning' : 'info', {
+    client: input.client,
+    phone: input.phone,
+    stage: 'novo_lead',
+    message: input.message || welcomeSkipMessage(input.eligibility),
+    metadata: { flow: 'welcome', eligibility: input.eligibility || null },
+  })
+}
+
 function looksLikeDeviceAnswer(text: string) {
   const normalized = text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
   return /(samsung|sansung|lg|roku|android|google tv|tcl|tv box|box|fire|stick|iphone|ios|celular|telefone|smart stb|smart up|tv antiga|pc|computador|notebook)/.test(normalized)
-}
-
-function welcomeHistoryThreshold(): number {
-  const parsed = Number(process.env.WELCOME_HISTORY_MESSAGE_THRESHOLD || 5)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
-}
-
-function welcomeHistoryWindowMs(): number {
-  const hours = Number(process.env.WELCOME_HISTORY_WINDOW_HOURS || 72)
-  return (Number.isFinite(hours) && hours > 0 ? hours : 72) * 60 * 60 * 1000
 }
 
 async function maybeSendInstall(input: {
@@ -279,7 +297,7 @@ function startWelcomeInBackground(input: {
           welcome_sent_at: now,
           welcome_last_message_id: input.messageId || undefined,
           welcome_status: code,
-          active_flow_type: null,
+          active_flow_type: 'welcome',
         },
       }).catch(() => null)
       await recordOperationalEvent(code, code === 'WELCOME_SENT' ? 'success' : 'info', {
@@ -330,6 +348,21 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
   }
   if (inbound.messageId) processedMessages.set(inbound.messageId, Date.now())
 
+  const isDeviceIntent = looksLikeDeviceAnswer(inbound.text)
+  const welcomeEligibility = isDeviceIntent ? null : await shouldSendWelcomeToPhone({
+    phone: inbound.phone,
+    text: inbound.text,
+    messageId: inbound.messageId || undefined,
+  }).catch((error) => ({
+    checked: false,
+    allowWelcome: false,
+    code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE' as const,
+    phone: inbound.phone,
+    reason: error instanceof Error ? error.message : 'Falha ao decidir elegibilidade de boas-vindas.',
+    textLooksLikeInitialContact: false,
+  }))
+
+  let operationalCaptureError = ''
   const operational = await ensureInboundLead({
     phone: inbound.phone,
     name: inbound.pushName,
@@ -337,8 +370,9 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     messageId: inbound.messageId,
     event: inbound.event,
   }).catch((error) => {
-    logInbound('OPERATIONAL_LEAD_CAPTURE_FAILED', { phone: inbound.phone, error: error instanceof Error ? error.message : String(error) })
-    return { client: null, duplicate: false, metadata: {} }
+    operationalCaptureError = error instanceof Error ? error.message : String(error)
+    logInbound('OPERATIONAL_LEAD_CAPTURE_FAILED', { phone: inbound.phone, error: operationalCaptureError })
+    return { client: null, duplicate: false, metadata: {}, created: false, existing: false }
   })
 
   if (operational.duplicate) {
@@ -367,7 +401,6 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     metadata: { event: inbound.event, message_id: inbound.messageId || null, has_text: Boolean(inbound.text) },
   })
 
-  const isDeviceIntent = looksLikeDeviceAnswer(inbound.text)
   if (isDeviceIntent) {
     const device = normalizeInstallDevice(inbound.text)
     const flowClient = await cancelWelcomeFlow({
@@ -407,80 +440,45 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     }
   }
 
-  const customer = await classifyPhoneForWelcome(inbound.phone)
-  if (customer.kind === 'active_client') {
-    logInbound('WELCOME_SKIPPED_CLIENT_EXISTS', { phone: inbound.phone, reason: customer.reason, client: customer.client })
-    await recordOperationalEvent('FLOW_SKIPPED_CLIENT_ACTIVE', 'info', {
-      client: operational.client,
-      phone: inbound.phone,
-      message: 'Cliente active encontrado; boas-vindas nao enviada.',
-      metadata: { reason: customer.reason, active_client_id: customer.client?.id },
-    })
-    return { ok: true, code: 'WELCOME_SKIPPED_CLIENT_EXISTS', message: 'Cliente active encontrado; boas-vindas nao enviada.', phone: maskPhone(inbound.phone), customer }
-  }
-  if (customer.kind === 'active_test') {
-    logInbound('WELCOME_SKIPPED_TEST_EXISTS', { phone: inbound.phone, reason: customer.reason, test: customer.test })
-    await recordOperationalEvent('FLOW_SKIPPED_TEST_ACTIVE', 'info', {
-      client: operational.client,
-      phone: inbound.phone,
-      stage: 'teste_gerado',
-      message: 'Teste active encontrado; boas-vindas nao enviada.',
-      metadata: { reason: customer.reason, active_test_id: customer.test?.id },
-    })
-    return { ok: true, code: 'WELCOME_SKIPPED_TEST_EXISTS', message: 'Teste active encontrado; boas-vindas nao enviada.', phone: maskPhone(inbound.phone), customer }
-  }
-  if (!customer.checked) {
-    logInbound('WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', { phone: inbound.phone, reason: customer.reason })
-    await recordOperationalEvent('FLOW_FAILED', 'warning', {
-      client: operational.client,
-      phone: inbound.phone,
-      stage: 'novo_lead',
-      message: 'Consulta cliente/teste indisponivel; boas-vindas bloqueada.',
-      metadata: { reason: customer.reason },
-    })
-    return { ok: true, code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', message: 'Consulta cliente/teste indisponivel; falha fechada sem boas-vindas.', phone: maskPhone(inbound.phone), customer }
-  }
-
   if (!boolEnv(process.env.INBOUND_WELCOME_ENABLED, true)) {
-    return { ok: true, code: 'INBOUND_IGNORED', message: 'Boas-vindas inbound desativada.', phone: maskPhone(inbound.phone), customer }
+    return { ok: true, code: 'INBOUND_IGNORED', message: 'Boas-vindas inbound desativada.', phone: maskPhone(inbound.phone), welcomeEligibility: welcomeEligibility || undefined }
   }
 
-  const operationalHistory = await inspectWelcomeOperationalHistory({
-    phone: inbound.phone,
-    client: operational.client,
-    metadata: operational.metadata,
-    windowMs: welcomeHistoryWindowMs(),
-    threshold: welcomeHistoryThreshold(),
-  }).catch((error) => ({
-    checked: false,
-    allowWelcome: false,
-    messageCount: 0,
-    threshold: welcomeHistoryThreshold(),
-    reasons: [error instanceof Error ? error.message : 'Falha ao consultar historico operacional.'],
-  }))
-
-  if (!operationalHistory.checked) {
-    logInbound('WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', { phone: inbound.phone, reason: operationalHistory.reasons.join('; ') })
-    await recordOperationalEvent('FLOW_FAILED', 'warning', {
-      client: operational.client,
+  if (operationalCaptureError) {
+    const eligibility: WelcomeEligibilityResult = {
+      checked: false,
+      allowWelcome: false,
+      code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE',
       phone: inbound.phone,
-      stage: 'novo_lead',
-      message: 'Historico operacional indisponivel; boas-vindas bloqueada.',
-      metadata: { flow: 'welcome', reasons: operationalHistory.reasons },
-    })
-    return { ok: true, code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', message: 'Historico operacional indisponivel; falha fechada sem boas-vindas.', phone: maskPhone(inbound.phone), customer }
+      reason: `Falha ao gravar/consultar lead operacional: ${operationalCaptureError}`,
+      textLooksLikeInitialContact: welcomeEligibility?.textLooksLikeInitialContact,
+    }
+    logInbound('WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', { phone: inbound.phone, reason: eligibility.reason })
+    await recordWelcomeSkip({ code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', phone: inbound.phone, client: operational.client, eligibility })
+    return { ok: true, code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE', message: welcomeSkipMessage(eligibility), phone: maskPhone(inbound.phone), welcomeEligibility: eligibility }
   }
 
-  if (!operationalHistory.allowWelcome) {
-    logInbound('WELCOME_SKIPPED_RECENT_HISTORY', { phone: inbound.phone, operationalHistory })
-    await recordOperationalEvent('FLOW_SKIPPED_DUPLICATE', 'info', {
-      client: operational.client,
-      phone: inbound.phone,
-      stage: 'novo_lead',
-      message: 'Historico operacional bloqueou boas-vindas.',
-      metadata: { flow: 'welcome', operational_history: operationalHistory },
-    })
-    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Historico operacional existente; boas-vindas nao enviada.', phone: maskPhone(inbound.phone), customer }
+  if (!welcomeEligibility?.allowWelcome) {
+    const code = (welcomeEligibility?.code && welcomeEligibility.code !== 'WELCOME_ALLOWED'
+      ? welcomeEligibility.code
+      : 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE') as InboundDecisionCode
+    logInbound(code, { phone: inbound.phone, eligibility: welcomeEligibility })
+    await recordWelcomeSkip({ code, phone: inbound.phone, client: operational.client, eligibility: welcomeEligibility })
+    return { ok: true, code, message: welcomeSkipMessage(welcomeEligibility), phone: maskPhone(inbound.phone), welcomeEligibility: welcomeEligibility || undefined }
+  }
+
+  if (!operational.created || !operational.client?.id) {
+    const eligibility: WelcomeEligibilityResult = {
+      ...welcomeEligibility,
+      allowWelcome: false,
+      code: operational.existing ? 'WELCOME_SKIPPED_EXISTING_CONTACT' : 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE',
+      reason: operational.existing
+        ? 'Telefone passou na pre-checagem, mas ja existia ao gravar inbound; falha fechada.'
+        : 'Lead operacional nao foi criado com seguranca; falha fechada.',
+    }
+    logInbound(eligibility.code, { phone: inbound.phone, eligibility })
+    await recordWelcomeSkip({ code: eligibility.code as InboundDecisionCode, phone: inbound.phone, client: operational.client, eligibility })
+    return { ok: true, code: eligibility.code as InboundDecisionCode, message: welcomeSkipMessage(eligibility), phone: maskPhone(inbound.phone), welcomeEligibility: eligibility }
   }
 
   const welcomeAt = metadataString(operational.metadata, 'welcome_sent_at')
@@ -494,7 +492,7 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
       message: 'Boas-vindas em execucao ignorada por trava persistente.',
       metadata: { flow: 'welcome', welcome_started_at: welcomeStartedAt },
     })
-    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Boas-vindas ja esta em execucao para este numero.', phone: maskPhone(inbound.phone), customer }
+    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Boas-vindas ja esta em execucao para este numero.', phone: maskPhone(inbound.phone), welcomeEligibility }
   }
   if (isRecentIso(welcomeAt, WELCOME_TTL_MS) && welcomeStatus !== 'WELCOME_DRY_RUN') {
     await recordOperationalEvent('FLOW_SKIPPED_DUPLICATE', 'info', {
@@ -504,13 +502,13 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
       message: 'Boas-vindas recente ignorada por trava persistente.',
       metadata: { flow: 'welcome', welcome_sent_at: welcomeAt },
     })
-    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Boas-vindas recente ja registrada para este numero.', phone: maskPhone(inbound.phone), customer }
+    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Boas-vindas recente ja registrada para este numero.', phone: maskPhone(inbound.phone), welcomeEligibility }
   }
 
   pruneCache(recentWelcomeByPhone, WELCOME_TTL_MS)
   if (recentWelcomeByPhone.has(inbound.phone)) {
     logInbound('WELCOME_SKIPPED_RECENT_HISTORY', { phone: inbound.phone, reason: 'Cache local anti-loop.' })
-    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Boas-vindas recente ja preparada para este numero.', phone: maskPhone(inbound.phone), customer }
+    return { ok: true, code: 'WELCOME_SKIPPED_RECENT_HISTORY', message: 'Boas-vindas recente ja preparada para este numero.', phone: maskPhone(inbound.phone), welcomeEligibility }
   }
 
   recentWelcomeByPhone.set(inbound.phone, Date.now())
@@ -521,6 +519,9 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     metadataPatch: {
       welcome_started_at: startedAt,
       welcome_flow_started_at: startedAt,
+      welcome_sent_at: startedAt,
+      last_inbound_at: startedAt,
+      last_inbound_message_id: inbound.messageId || undefined,
       welcome_last_message_id: inbound.messageId || undefined,
       welcome_status: 'WELCOME_STARTED',
       welcome_flow_status: 'running',
@@ -546,6 +547,6 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     code: 'WELCOME_STARTED',
     message: 'Fluxo de boas-vindas iniciado em background.',
     phone: maskPhone(inbound.phone),
-    customer,
+    welcomeEligibility,
   }
 }

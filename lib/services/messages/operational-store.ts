@@ -248,9 +248,9 @@ export async function ensureInboundLead(input: {
   text?: string
   messageId?: string
   event?: string
-}): Promise<{ client: OperationalClient | null; duplicate: boolean; metadata: JsonRecord }> {
+}): Promise<{ client: OperationalClient | null; duplicate: boolean; metadata: JsonRecord; created: boolean; existing: boolean }> {
   const normalized = normalizePhone(input.phone)
-  if (!enabled() || !normalized) return { client: null, duplicate: false, metadata: {} }
+  if (!enabled() || !normalized) return { client: null, duplicate: false, metadata: {}, created: false, existing: false }
 
   const now = new Date().toISOString()
   const existing = await findClientByPhone(normalized)
@@ -277,7 +277,7 @@ export async function ensureInboundLead(input: {
       `clients?id=eq.${queryValue(existing.id)}&select=id,name,phone_e164,status,legacy_metadata`,
       { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(update) }
     )
-    return { client: { ...existing, name: existing.name || input.name || existing.name, legacy_metadata: nextMetadata }, duplicate, metadata: nextMetadata }
+    return { client: { ...existing, name: existing.name || input.name || existing.name, legacy_metadata: nextMetadata }, duplicate, metadata: nextMetadata, created: false, existing: true }
   }
 
   const inserted = await request<OperationalClient[]>(
@@ -301,7 +301,7 @@ export async function ensureInboundLead(input: {
     }
   )
   const client = inserted[0] || null
-  return { client, duplicate: false, metadata: metadataOf(client) }
+  return { client, duplicate: false, metadata: metadataOf(client), created: Boolean(client), existing: false }
 }
 
 export async function updateClientOperationalState(input: {

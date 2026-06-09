@@ -1,7 +1,16 @@
 import { maskPhone, sanitizeForLog } from '../evolution/mask'
 import { buildPhoneCandidates, normalizePhone } from '../evolution/normalize-phone'
+import { inboundWelcomeHistoryThreshold, inboundWelcomeHistoryWindowMs, inspectEvolutionConversationHistory, type EvolutionConversationHistory } from './conversation-history'
 
 type CustomerKind = 'active_client' | 'active_test' | 'non_customer' | 'unknown'
+type WelcomeEligibilityCode =
+  | 'WELCOME_ALLOWED'
+  | 'WELCOME_SKIPPED_CLIENT_EXISTS'
+  | 'WELCOME_SKIPPED_TEST_EXISTS'
+  | 'WELCOME_SKIPPED_EXISTING_CONTACT'
+  | 'WELCOME_SKIPPED_RECENT_HISTORY'
+  | 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE'
+  | 'WELCOME_SKIPPED_NOT_FIRST_CONTACT'
 
 export interface CustomerLookupResult {
   checked: boolean
@@ -10,6 +19,17 @@ export interface CustomerLookupResult {
   reason: string
   client?: { id: string; name?: string; status?: string }
   test?: { id: string; status?: string; expiresAt?: string | null }
+}
+
+export interface WelcomeEligibilityResult {
+  checked: boolean
+  allowWelcome: boolean
+  code: WelcomeEligibilityCode
+  phone: string
+  reason: string
+  client?: { id: string; name?: string; status?: string }
+  history?: EvolutionConversationHistory
+  textLooksLikeInitialContact?: boolean
 }
 
 type SupabaseRow = Record<string, unknown>
@@ -23,6 +43,11 @@ function supabaseConfig() {
 
 function queryValue(value: string) {
   return encodeURIComponent(value)
+}
+
+function boolEnv(value: string | undefined, fallback: boolean) {
+  if (value == null || value === '') return fallback
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase())
 }
 
 async function supabaseSelect<T extends SupabaseRow>(path: string): Promise<T[]> {
@@ -47,6 +72,10 @@ function isActiveClientStatus(status: unknown) {
   return String(status || '').toLowerCase() === 'active'
 }
 
+function isTestActiveClientStatus(status: unknown) {
+  return String(status || '').toLowerCase() === 'test_active'
+}
+
 function isActiveTestStatus(status: unknown) {
   return String(status || '').toLowerCase() === 'active'
 }
@@ -56,6 +85,209 @@ function isFuture(value: unknown) {
   if (!text) return true
   const time = new Date(text).getTime()
   return Number.isNaN(time) || time > Date.now()
+}
+
+function metadataHasPriorConversation(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return []
+  const record = metadata as Record<string, unknown>
+  const reasons: string[] = []
+  for (const key of [
+    'welcome_sent_at',
+    'welcome_started_at',
+    'welcome_flow_started_at',
+    'install_sent_at',
+    'last_inbound_at',
+    'last_inbound_message_id',
+    'last_outbound_at',
+    'last_outbound_message_id',
+    'welcome_flow_status',
+    'active_flow_type',
+    'last_device_intent_at',
+    'last_device_intent_message_id',
+  ]) {
+    if (record[key]) reasons.push(`metadata_${key}`)
+  }
+
+  for (const key of ['inbound_message_count', 'message_count', 'conversation_message_count', 'outbound_message_count']) {
+    const count = Number(record[key])
+    if (Number.isFinite(count) && count > 0) reasons.push(`metadata_${key}`)
+  }
+
+  return reasons
+}
+
+export function looksLikeInitialAdContact(text: string): boolean {
+  const normalized = String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalized) return false
+  if (/(samsung|sansung|lg|roku|android|google tv|tcl|tv box|fire stick|mi stick|iphone|ios|celular|smart stb|smart up|pc|computador|notebook|login|senha|renovar|renovacao|pagamento|pix|suporte|travando|nao funciona|instalar|instalacao|aplicativo)/.test(normalized)) {
+    return false
+  }
+
+  return /(tenho interesse|quero saber mais|saber mais|quero fazer (um )?teste|fazer (um )?teste|teste gratis|quero teste|quero conhecer|como funciona|qual (e )?o valor|valores|pre[cç]o|planos|quero assinar|assinar agora|me chama|pode me passar|mais informa[cç]oes)/.test(normalized)
+}
+
+export async function shouldSendWelcomeToPhone(input: string | {
+  phone: string
+  text?: string
+  messageId?: string
+}): Promise<WelcomeEligibilityResult> {
+  const phone = typeof input === 'string' ? input : input.phone
+  const text = typeof input === 'string' ? '' : String(input.text || '')
+  const messageId = typeof input === 'string' ? '' : String(input.messageId || '')
+  const normalized = normalizePhone(phone)
+  if (!normalized) {
+    return {
+      checked: false,
+      allowWelcome: false,
+      code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE',
+      phone: '',
+      reason: 'Telefone invalido.',
+      textLooksLikeInitialContact: false,
+    }
+  }
+
+  const initialContact = looksLikeInitialAdContact(text)
+  if (!initialContact) {
+    return {
+      checked: true,
+      allowWelcome: false,
+      code: 'WELCOME_SKIPPED_NOT_FIRST_CONTACT',
+      phone: normalized,
+      reason: 'Mensagem nao parece primeiro contato real de anuncio.',
+      textLooksLikeInitialContact: false,
+    }
+  }
+
+  const candidates = buildPhoneCandidates(normalized)
+  const phoneFilters = candidates.map((candidate) => `phone_e164.eq.${queryValue(candidate)}`).join(',')
+  const onlyNewPhones = boolEnv(process.env.INBOUND_WELCOME_ONLY_FOR_NEW_PHONES, true)
+
+  try {
+    const clients = await supabaseSelect<{ id: string; name?: string; status?: string; legacy_metadata?: Record<string, unknown> }>(
+      `clients?select=id,name,status,phone_e164,legacy_metadata&or=(${phoneFilters})&limit=10`
+    )
+    const testActiveClient = clients.find((client) => isTestActiveClientStatus(client.status))
+    if (testActiveClient) {
+      return {
+        checked: true,
+        allowWelcome: false,
+        code: 'WELCOME_SKIPPED_TEST_EXISTS',
+        phone: normalized,
+        reason: 'Telefone ja existe em clients com status test_active.',
+        client: { id: testActiveClient.id, name: testActiveClient.name, status: testActiveClient.status },
+        textLooksLikeInitialContact: true,
+      }
+    }
+
+    const activeClient = clients.find((client) => isActiveClientStatus(client.status))
+    if (activeClient) {
+      return {
+        checked: true,
+        allowWelcome: false,
+        code: 'WELCOME_SKIPPED_CLIENT_EXISTS',
+        phone: normalized,
+        reason: 'Telefone ja existe em clients com status active.',
+        client: { id: activeClient.id, name: activeClient.name, status: activeClient.status },
+        textLooksLikeInitialContact: true,
+      }
+    }
+
+    const metadataClient = clients.find((client) => metadataHasPriorConversation(client.legacy_metadata).length > 0)
+    if (metadataClient) {
+      return {
+        checked: true,
+        allowWelcome: false,
+        code: 'WELCOME_SKIPPED_EXISTING_CONTACT',
+        phone: normalized,
+        reason: `Telefone ja tem metadata de conversa anterior: ${metadataHasPriorConversation(metadataClient.legacy_metadata).join(', ')}.`,
+        client: { id: metadataClient.id, name: metadataClient.name, status: metadataClient.status },
+        textLooksLikeInitialContact: true,
+      }
+    }
+
+    if (onlyNewPhones && clients.length > 0) {
+      const client = clients[0]
+      return {
+        checked: true,
+        allowWelcome: false,
+        code: 'WELCOME_SKIPPED_EXISTING_CONTACT',
+        phone: normalized,
+        reason: 'Telefone ja existe em clients; flag INBOUND_WELCOME_ONLY_FOR_NEW_PHONES=true.',
+        client: { id: client.id, name: client.name, status: client.status },
+        textLooksLikeInitialContact: true,
+      }
+    }
+  } catch (error) {
+    console.warn(`[WELCOME_LOOKUP_FAILED] ${JSON.stringify(sanitizeForLog({
+      phone: maskPhone(normalized),
+      error: error instanceof Error ? error.message : String(error),
+    }))}`)
+    return {
+      checked: false,
+      allowWelcome: false,
+      code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE',
+      phone: normalized,
+      reason: error instanceof Error ? error.message : 'Falha ao consultar clients.',
+      textLooksLikeInitialContact: true,
+    }
+  }
+
+  const history = await inspectEvolutionConversationHistory({
+    phone: normalized,
+    messageId,
+    threshold: inboundWelcomeHistoryThreshold(),
+    windowMs: inboundWelcomeHistoryWindowMs(),
+  }).catch((error) => ({
+    checked: false,
+    allowWelcome: false,
+    messageCount: 0,
+    previousMessageCount: 0,
+    previousInboundCount: 0,
+    outboundCount: 0,
+    threshold: inboundWelcomeHistoryThreshold(),
+    activeContext: false,
+    reasons: [error instanceof Error ? error.message : 'Falha ao consultar historico Evolution.'],
+  }))
+
+  if (!history.checked) {
+    return {
+      checked: false,
+      allowWelcome: false,
+      code: 'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE',
+      phone: normalized,
+      reason: history.reasons.join('; ') || 'Historico indisponivel.',
+      history,
+      textLooksLikeInitialContact: true,
+    }
+  }
+
+  if (!history.allowWelcome) {
+    return {
+      checked: true,
+      allowWelcome: false,
+      code: 'WELCOME_SKIPPED_RECENT_HISTORY',
+      phone: normalized,
+      reason: history.reasons.join('; ') || 'Historico recente bloqueou boas-vindas.',
+      history,
+      textLooksLikeInitialContact: true,
+    }
+  }
+
+  return {
+    checked: true,
+    allowWelcome: true,
+    code: 'WELCOME_ALLOWED',
+    phone: normalized,
+    reason: 'Telefone novo, historico limpo e mensagem de interesse inicial.',
+    history,
+    textLooksLikeInitialContact: true,
+  }
 }
 
 export async function classifyPhoneForWelcome(phone: string): Promise<CustomerLookupResult> {
@@ -119,4 +351,3 @@ export async function classifyPhoneForWelcome(phone: string): Promise<CustomerLo
     }
   }
 }
-

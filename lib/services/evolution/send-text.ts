@@ -4,7 +4,7 @@ import type { SendTextInput } from './types'
 
 export async function sendText(input: SendTextInput) {
   const baseConfig = getEvolutionConfig()
-  const config = { ...baseConfig, dryRun: Boolean(baseConfig.dryRun || !baseConfig.enabled || input.dryRun) }
+  const config = { ...baseConfig, instance: input.instance || baseConfig.instance, dryRun: Boolean(baseConfig.dryRun || !baseConfig.enabled || input.dryRun) }
   return sendEvolutionRequest({
     action: 'send_text',
     endpoint: `/message/sendText/${config.instance}`,

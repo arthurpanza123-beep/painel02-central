@@ -4,7 +4,7 @@ import type { SendPresenceInput } from './types'
 
 export async function sendPresence(input: SendPresenceInput) {
   const baseConfig = getEvolutionConfig()
-  const config = { ...baseConfig, dryRun: Boolean(baseConfig.dryRun || !baseConfig.enabled || input.dryRun) }
+  const config = { ...baseConfig, instance: input.instance || baseConfig.instance, dryRun: Boolean(baseConfig.dryRun || !baseConfig.enabled || input.dryRun) }
   return sendEvolutionRequest({
     action: 'send_presence',
     endpoint: `/chat/sendPresence/${config.instance}`,

@@ -53,6 +53,7 @@ export async function waitHumanizedDelivery(input: {
   phone: string
   presence: PresenceType
   dryRun: boolean
+  instance?: string
   context?: Record<string, unknown>
   shouldContinue?: () => Promise<string | false> | string | false
 }): Promise<HumanizedDeliveryResult> {
@@ -69,6 +70,7 @@ export async function waitHumanizedDelivery(input: {
     phone: input.phone,
     presence: input.presence,
     delayMs,
+    instance: input.instance,
     context: input.context,
   }).catch((error) => ({
     ok: false,

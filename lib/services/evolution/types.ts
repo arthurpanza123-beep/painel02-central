@@ -39,6 +39,7 @@ export interface SendTextInput {
   message: string
   context?: Record<string, unknown>
   dryRun?: boolean
+  instance?: string
 }
 
 export interface SendMediaInput {
@@ -51,6 +52,7 @@ export interface SendMediaInput {
   fileName?: string
   context?: Record<string, unknown>
   dryRun?: boolean
+  instance?: string
 }
 
 export interface SendStickerInput {
@@ -59,6 +61,7 @@ export interface SendStickerInput {
   stickerPath?: string
   context?: Record<string, unknown>
   dryRun?: boolean
+  instance?: string
 }
 
 export interface SendAudioInput {
@@ -67,6 +70,7 @@ export interface SendAudioInput {
   audioPath?: string
   context?: Record<string, unknown>
   dryRun?: boolean
+  instance?: string
 }
 
 export interface SendPresenceInput {
@@ -75,4 +79,5 @@ export interface SendPresenceInput {
   delayMs: number
   context?: Record<string, unknown>
   dryRun?: boolean
+  instance?: string
 }

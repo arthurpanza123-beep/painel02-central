@@ -1,10 +1,10 @@
 import { getEvolutionConfig } from '../evolution/config'
 import { maskPhone } from '../evolution/mask'
-import { normalizePhone } from '../evolution/normalize-phone'
 import { sendAudio } from '../evolution/send-audio'
 import { sendMedia } from '../evolution/send-media'
 import { sendText } from '../evolution/send-text'
 import type { EvolutionSendResult } from '../evolution/types'
+import { inspectEvolutionConversationHistory } from './conversation-history'
 import { waitHumanizedDelivery, type HumanizedDeliveryResult } from './humanized-delivery'
 import { inspectWelcomeCancellation, recordOperationalEvent, updateClientOperationalState, type OperationalClient } from './operational-store'
 
@@ -26,6 +26,7 @@ export interface WelcomeFlowInput {
   force?: boolean
   startedAt?: string
   messageId?: string
+  instance?: string
 }
 
 export interface WelcomeStepResult {
@@ -87,88 +88,6 @@ function resolveDryRun(inputDryRun?: boolean): boolean {
   return Boolean(inputDryRun || config.dryRun || !config.enabled)
 }
 
-function historyThreshold(): number {
-  const parsed = Number(process.env.WELCOME_HISTORY_MESSAGE_THRESHOLD || 5)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
-}
-
-function recentWindowMs(): number {
-  const hours = Number(process.env.WELCOME_HISTORY_WINDOW_HOURS || 72)
-  return (Number.isFinite(hours) && hours > 0 ? hours : 72) * 60 * 60 * 1000
-}
-
-function extractMessages(payload: unknown): unknown[] {
-  if (Array.isArray(payload)) return payload
-  if (!payload || typeof payload !== 'object') return []
-  const record = payload as Record<string, unknown>
-  for (const key of ['messages', 'data', 'records', 'items']) {
-    const value = record[key]
-    if (Array.isArray(value)) return value
-    if (value && typeof value === 'object' && Array.isArray((value as Record<string, unknown>).messages)) {
-      return (value as Record<string, unknown>).messages as unknown[]
-    }
-  }
-  return []
-}
-
-function messageTimestamp(message: unknown): number {
-  if (!message || typeof message !== 'object') return 0
-  const record = message as Record<string, unknown>
-  const raw = record.messageTimestamp || record.timestamp || record.createdAt || record.created_at
-  if (typeof raw === 'number') return raw < 10_000_000_000 ? raw * 1000 : raw
-  if (typeof raw === 'string') {
-    const parsed = new Date(raw).getTime()
-    return Number.isNaN(parsed) ? 0 : parsed
-  }
-  return 0
-}
-
-function hasActiveCustomerContext(messages: unknown[]): boolean {
-  const joined = messages.map((message) => JSON.stringify(message).toLowerCase()).join('\n')
-  return /renova|renovacao|renova[cç][aã]o|pagou|pagamento|cliente ativo|vencimento|suporte|login|senha|reload|recarregar/.test(joined)
-}
-
-async function inspectRecentHistory(phone: string) {
-  const config = getEvolutionConfig()
-  const normalized = normalizePhone(phone)
-  if (!normalized || !config.apiUrl || !config.apiKey || !config.instance) {
-    return { checked: false, allowWelcome: false, messageCount: 0, reason: 'Historico indisponivel: Evolution incompleta.' }
-  }
-
-  const remoteJid = `${normalized}@s.whatsapp.net`
-  const response = await fetch(`${config.apiUrl.replace(/\/+$/, '')}/chat/findMessages/${config.instance}`, {
-    method: 'POST',
-    headers: { apikey: config.apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      where: { key: { remoteJid } },
-      limit: 20,
-    }),
-  })
-  if (!response.ok) {
-    return { checked: false, allowWelcome: false, messageCount: 0, reason: `Historico indisponivel: Evolution HTTP ${response.status}.` }
-  }
-
-  const payload = await response.json().catch(() => null)
-  const cutoff = Date.now() - recentWindowMs()
-  const recent = extractMessages(payload).filter((message) => {
-    const ts = messageTimestamp(message)
-    return !ts || ts >= cutoff
-  })
-  const threshold = historyThreshold()
-  const activeContext = hasActiveCustomerContext(recent)
-  const allowWelcome = recent.length < threshold && !activeContext
-  return {
-    checked: true,
-    allowWelcome,
-    messageCount: recent.length,
-    threshold,
-    activeContext,
-    reason: allowWelcome
-      ? 'Historico curto; boas-vindas permitidas.'
-      : 'Conversa recente suficiente ou contexto de cliente ativo detectado.',
-  }
-}
-
 export function getWelcomeStep(step: string): WelcomeStep | null {
   return buildWelcomeFlow().find((item) => item.step === step) || null
 }
@@ -209,6 +128,7 @@ async function executeStep(input: WelcomeFlowInput, step: WelcomeStep, dryRun: b
     phone: input.phone,
     presence: step.type === 'audio' ? 'recording' : 'composing',
     dryRun,
+    instance: input.instance,
     context: { ...context, delivery: 'humanized' },
     shouldContinue: () => welcomeCancelReason(input, step),
   })
@@ -224,14 +144,14 @@ async function executeStep(input: WelcomeFlowInput, step: WelcomeStep, dryRun: b
     }
   }
   const result = step.type === 'audio'
-    ? await sendAudio({ phone: input.phone, audioUrl: step.url, dryRun, context })
-    : await sendMedia({ phone: input.phone, mediaUrl: step.url, caption: step.caption || '', type: 'image', mimetype: 'image/png', fileName: 'prova-social.png', dryRun, context })
+    ? await sendAudio({ phone: input.phone, audioUrl: step.url, dryRun, instance: input.instance, context })
+    : await sendMedia({ phone: input.phone, mediaUrl: step.url, caption: step.caption || '', type: 'image', mimetype: 'image/png', fileName: 'prova-social.png', dryRun, instance: input.instance, context })
 
   if (result.ok) {
     return { step: step.step, label: step.label, ok: true, dryRun: result.dryRun, code: result.code, message: result.message, humanized, result }
   }
 
-  const fallback = await sendText({ phone: input.phone, message: step.fallbackText, dryRun, context: { ...context, fallback_for: step.step } })
+  const fallback = await sendText({ phone: input.phone, message: step.fallbackText, dryRun, instance: input.instance, context: { ...context, fallback_for: step.step } })
   return {
     step: step.step,
     label: step.label,
@@ -247,7 +167,10 @@ async function executeStep(input: WelcomeFlowInput, step: WelcomeStep, dryRun: b
 
 export async function dispatchWelcomeFlow(input: WelcomeFlowInput) {
   const dryRun = resolveDryRun(input.dryRun)
-  const history = input.force ? { checked: false, allowWelcome: true, messageCount: 0, reason: 'Forcado pelo operador.' } : await inspectRecentHistory(input.phone).catch((error) => ({
+  const history = input.force ? { checked: false, allowWelcome: true, messageCount: 0, reason: 'Forcado pelo operador.' } : await inspectEvolutionConversationHistory({
+    phone: input.phone,
+    messageId: input.messageId,
+  }).catch((error) => ({
     checked: false,
     allowWelcome: false,
     messageCount: 0,
@@ -327,7 +250,7 @@ export async function dispatchWelcomeFlow(input: WelcomeFlowInput) {
       metadataPatch: {
         welcome_flow_status: 'completed',
         welcome_flow_completed_at: new Date().toISOString(),
-        active_flow_type: null,
+        active_flow_type: 'welcome',
       },
     }).catch(() => null)
   }
