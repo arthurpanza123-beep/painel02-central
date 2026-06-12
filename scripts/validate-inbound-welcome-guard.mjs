@@ -37,6 +37,9 @@ process.env.WELCOME_HUMAN_DELAY_MIN_MS = '0'
 process.env.WELCOME_HUMAN_DELAY_MAX_MS = '0'
 
 const phones = ['5522988473304', '5522988345946']
+function testPhone(index) {
+  return `552299900${String(index).padStart(4, '0')}`
+}
 let clientSeq = 0
 let state
 
@@ -82,11 +85,11 @@ function message(phone, id, fromMe = false, text = 'Olá! Tenho interesse e quer
   }
 }
 
-function inboundPayload(phone, id, text) {
+function inboundPayload(phone, id, text, fromMe = false) {
   return {
     event: 'messages.upsert',
     data: {
-      key: { remoteJid: `${phone}@s.whatsapp.net`, id, fromMe: false },
+      key: { remoteJid: `${phone}@s.whatsapp.net`, id, fromMe },
       pushName: 'Operador Autorizado',
       message: { conversation: text },
     },
@@ -176,6 +179,27 @@ async function runCase(name, setup, payload, expectedCode) {
 }
 
 async function main() {
+  const broadCases = [
+    ['broad opa', 'opa', 'generic_new_lead'],
+    ['broad ola', 'olá', 'generic_new_lead'],
+    ['broad bom dia', 'bom dia', 'generic_new_lead'],
+    ['broad quero saber mais', 'quero saber mais', 'welcome_interest'],
+    ['broad como funciona', 'como funciona?', 'device_question'],
+    ['broad quais planos', 'quais planos?', 'plans_activation'],
+    ['broad quero ativar', 'quero ativar', 'plans_activation'],
+  ]
+  for (const [index, [name, text, classification]] of broadCases.entries()) {
+    const phone = testPhone(index + 1)
+    reset()
+    state.historyByPhone.set(phone, [message(phone, name.replace(/\s+/g, '_'), false, text)])
+    const result = await handleEvolutionInboundWebhook(inboundPayload(phone, name.replace(/\s+/g, '_'), text))
+    await settleBackground()
+    assert.equal(result.code, 'WELCOME_STARTED', `${name}: expected WELCOME_STARTED, got ${result.code}`)
+    assert.equal(state.clients[0].legacy_metadata.inbound_flow_sent, true, `${name}: inbound_flow_sent not marked`)
+    assert.equal(state.clients[0].legacy_metadata.inbound_last_classification, classification, `${name}: wrong classification mark`)
+    console.log(`${name}: ${classification} -> ${result.code}`)
+  }
+
   await runCase(
     '1 novo sem historico',
     () => state.historyByPhone.set(phones[0], [message(phones[0], 'case1')]),
@@ -188,7 +212,7 @@ async function main() {
   await handleEvolutionInboundWebhook(inboundPayload(phones[1], 'case2a', 'Tenho interesse'))
   await settleBackground()
   const second = await handleEvolutionInboundWebhook(inboundPayload(phones[1], 'case2b', 'Tenho interesse'))
-  assert.equal(second.code, 'WELCOME_SKIPPED_EXISTING_CONTACT')
+  assert.equal(second.code, 'INBOUND_IGNORED')
   console.log(`2 mesmo telefone: ${second.code}`)
 
   await runCase(
@@ -202,19 +226,19 @@ async function main() {
     '4 active existente',
     () => addClient(phones[0], 'active'),
     inboundPayload(phones[0], 'case4', 'Tenho interesse'),
-    'WELCOME_SKIPPED_CLIENT_EXISTS'
+    'INBOUND_IGNORED'
   )
 
   await runCase(
     '5 test_active existente',
     () => addClient(phones[0], 'test_active'),
     inboundPayload(phones[0], 'case5', 'Tenho interesse'),
-    'WELCOME_SKIPPED_TEST_EXISTS'
+    'INBOUND_IGNORED'
   )
 
   await runCase(
-    '6 cinco mensagens recentes',
-    () => state.historyByPhone.set(phones[0], Array.from({ length: 5 }, (_, index) => message(phones[0], `case6_${index}`))),
+    '6 seis mensagens recentes',
+    () => state.historyByPhone.set(phones[0], Array.from({ length: 6 }, (_, index) => message(phones[0], `case6_${index}`))),
     inboundPayload(phones[0], 'case6_current', 'Tenho interesse'),
     'WELCOME_SKIPPED_RECENT_HISTORY'
   )
@@ -248,6 +272,52 @@ async function main() {
     inboundPayload(phones[0], 'case10', 'Tenho interesse'),
     'WELCOME_SKIPPED_LOOKUP_UNAVAILABLE'
   )
+
+  await runCase(
+    '11 fromMe ignorado',
+    () => {},
+    inboundPayload(phones[0], 'case11', 'opa', true),
+    'INBOUND_IGNORED'
+  )
+
+  process.env.EVOLUTION_CONNECTED_PHONE = phones[0]
+  await runCase(
+    '12 numero da propria instancia',
+    () => {},
+    inboundPayload(phones[0], 'case12', 'opa'),
+    'INBOUND_IGNORED'
+  )
+  delete process.env.EVOLUTION_CONNECTED_PHONE
+
+  await runCase(
+    '13 opt-out',
+    () => {},
+    inboundPayload(phones[0], 'case13', 'não quero'),
+    'LEAD_OPT_OUT'
+  )
+
+  await runCase(
+    '14 wrong number',
+    () => {},
+    inboundPayload(phones[0], 'case14', 'número errado'),
+    'LEAD_WRONG_NUMBER'
+  )
+
+  const adMessages = [
+    ['15 anuncio welcome', 'Olá, quero saber mais sobre a Central Play Plus.', 'welcome_interest'],
+    ['16 anuncio aparelho', 'Olá, como funciona para usar na minha TV?', 'device_question'],
+    ['17 anuncio planos', 'Olá, gostaria de conhecer os planos e saber como ativar.', 'plans_activation'],
+  ]
+  for (const [index, [name, text, classification]] of adMessages.entries()) {
+    const phone = testPhone(index + 100)
+    reset()
+    state.historyByPhone.set(phone, [message(phone, name.replace(/\s+/g, '_'), false, text)])
+    const result = await handleEvolutionInboundWebhook(inboundPayload(phone, name.replace(/\s+/g, '_'), text))
+    await settleBackground()
+    assert.equal(result.code, 'WELCOME_STARTED', `${name}: expected WELCOME_STARTED, got ${result.code}`)
+    assert.equal(state.clients[0].legacy_metadata.inbound_last_classification, classification, `${name}: wrong classification mark`)
+    console.log(`${name}: ${classification} -> ${result.code}`)
+  }
 }
 
 main().catch((error) => {

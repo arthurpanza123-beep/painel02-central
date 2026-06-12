@@ -33,11 +33,13 @@ export interface WelcomeEligibilityResult {
 }
 
 export type InboundAdIntent =
+  | 'generic_new_lead'
   | 'welcome_interest'
   | 'device_question'
   | 'plans_activation'
   | 'ad_greeting'
-  | 'not_interested'
+  | 'opt_out'
+  | 'wrong_number'
   | 'other'
 
 type SupabaseRow = Record<string, unknown>
@@ -103,7 +105,11 @@ function metadataHasPriorConversation(metadata: unknown): string[] {
     'welcome_sent_at',
     'welcome_started_at',
     'welcome_flow_started_at',
+    'inbound_flow_sent',
+    'first_auto_flow_sent_at',
     'install_sent_at',
+    'opt_out_at',
+    'wrong_number_at',
     'last_inbound_at',
     'last_inbound_message_id',
     'last_outbound_at',
@@ -129,15 +135,16 @@ export function looksLikeInitialAdContact(text: string): boolean {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/[?!.,;:]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
   if (!normalized) return false
-  if (/(samsung|sansung|lg|roku|android|google tv|tcl|tv box|fire stick|mi stick|iphone|ios|celular|smart stb|smart up|pc|computador|notebook|login|senha|renovar|renovacao|pagamento|pix|suporte|travando|nao funciona|instalar|instalacao|aplicativo)/.test(normalized)) {
+  if (/(login|senha|renovar|renovacao|pagamento|pix|suporte|travando|nao funciona)/.test(normalized)) {
     return false
   }
 
-  return /(ola seja bem vindo a central play plus atendimento online|central play plus|tenho interesse|quero saber mais|saber mais|quero fazer (um )?teste|fazer (um )?teste|teste gratis|quero teste|quero conhecer|gostaria de conhecer|como funciona|como funciona para usar|como funciona na minha tv|quero usar na minha tv|qual (e )?o valor|valores|pre[cç]o|planos|quais sao os planos|quero conhecer os planos|gostaria de saber os planos|quero assinar|assinar agora|quero ativar|gostaria de ativar|como faco para ativar|saber como ativar|me chama|pode me passar|mais informa[cç]oes)/.test(normalized)
+  return /(^|\s)(opa|oi|ola|bom dia|boa tarde|boa noite|tudo bem|e ai)(\s|$)|ola seja bem vindo a central play plus atendimento online|central play plus|tenho interesse|quero saber|quero saber mais|saber mais|gostaria de saber|quero informa[cç]oes|mais informa[cç]oes|pode me explicar|me explica|me fala mais|quero fazer (um )?teste|fazer (um )?teste|teste gratis|tem teste|quero teste|quero conhecer|gostaria de conhecer|vi (o )?anuncio|vim pelo anuncio|vi no instagram|vi no facebook|como funciona|como usa|como funciona para usar|como funciona na minha tv|como uso na tv|funciona na minha tv|quero usar na minha tv|samsung|sansung|lg|roku|android|google tv|tcl|tv box|fire stick|mi stick|iphone|ios|celular|smart stb|smart up|pc|computador|notebook|qual (e )?o valor|valores|valor|preco|planos|quais sao os planos|quais planos|quero os planos|quero conhecer os planos|gostaria de saber os planos|quero assinar|assinar agora|quero ativar|gostaria de ativar|como faco para ativar|como ativar|saber como ativar|me chama|pode me passar/.test(normalized)
 }
 
 export function classifyInboundAdIntent(text: string): InboundAdIntent {
@@ -145,14 +152,17 @@ export function classifyInboundAdIntent(text: string): InboundAdIntent {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/[?!.,;:]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   if (!normalized) return 'other'
-  if (/(nao quero|não quero|pare|parar|cancela|cancelar|sem interesse|nao tenho interesse)/i.test(text)) return 'not_interested'
+  if (/(^|\s)(nao quero|não quero|pare|parar|remover|sair|cancela|cancelar|stop|me remove|sem interesse|nao tenho interesse)(\s|$)/i.test(text)) return 'opt_out'
+  if (/(numero errado|número errado|aqui nao e|aqui não é|nao sou essa pessoa|não sou essa pessoa|nao conheco|não conheço|enganou|telefone errado)/i.test(text)) return 'wrong_number'
   if (/ola seja bem vindo a central play plus atendimento online/.test(normalized)) return 'ad_greeting'
-  if (/(gostaria de conhecer os planos|conhecer os planos|quais planos|quais sao os planos|quero conhecer os planos|gostaria de saber os planos|quero ativar|gostaria de ativar|como faco para ativar|saber como ativar|planos e saber como ativar)/.test(normalized)) return 'plans_activation'
-  if (/(como funciona para usar|como funciona na minha tv|quero usar na minha tv|como funciona)/.test(normalized)) return 'device_question'
-  if (/(quero saber mais|saber mais sobre a central play plus|quero saber mais sobre a central play plus|central play plus|tenho interesse|mais informacoes)/.test(normalized)) return 'welcome_interest'
+  if (/(gostaria de conhecer os planos|conhecer os planos|quais planos|quais sao os planos|quero os planos|quero conhecer os planos|gostaria de saber os planos|quero ativar|gostaria de ativar|como faco para ativar|como ativar|saber como ativar|planos e saber como ativar|quanto custa|qual (e )?o valor|valores|valor|preco|planos)/.test(normalized)) return 'plans_activation'
+  if (/(como funciona para usar|como funciona na minha tv|como uso na tv|funciona na minha tv|quero usar na minha tv|como funciona|como usa|samsung|sansung|lg|roku|android|google tv|tcl|tv box|fire stick|mi stick|iphone|ios|celular|smart stb|smart up)/.test(normalized)) return 'device_question'
+  if (/(quero saber mais|saber mais sobre a central play plus|quero saber mais sobre a central play plus|central play plus|tenho interesse|mais informacoes|quero informacoes|gostaria de saber|quero saber|pode me explicar|me explica|quero conhecer|gostaria de conhecer|vi (o )?anuncio|vim pelo anuncio|vi no instagram|vi no facebook|me fala mais|tem teste|quero teste|teste gratis)/.test(normalized)) return 'welcome_interest'
+  if (/(^|\s)(opa|oi|ola|bom dia|boa tarde|boa noite|tudo bem|e ai)(\s|$)/.test(normalized)) return 'generic_new_lead'
   return 'other'
 }
 
@@ -308,7 +318,7 @@ export async function shouldSendWelcomeToPhone(input: string | {
     allowWelcome: true,
     code: 'WELCOME_ALLOWED',
     phone: normalized,
-    reason: 'Telefone novo, historico limpo e mensagem de interesse inicial.',
+    reason: 'Telefone novo/elegivel, historico inicial com ate 5 mensagens e mensagem de interesse inicial.',
     history,
     textLooksLikeInitialContact: true,
   }

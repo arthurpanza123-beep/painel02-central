@@ -32,6 +32,7 @@ type InboundDecisionCode =
   | 'FLOW_SKIPPED_DUPLICATE'
   | 'FLOW_FAILED'
   | 'LEAD_OPT_OUT'
+  | 'LEAD_WRONG_NUMBER'
   | 'PLANS_SENT'
   | 'PLANS_DRY_RUN'
 
@@ -114,6 +115,11 @@ function logInbound(code: string, payload: Record<string, unknown>) {
   console.log(`[${code}] ${JSON.stringify(sanitizeForLog(payload))}`)
 }
 
+function metadataFlag(metadata: Record<string, unknown>, key: string): boolean {
+  const value = metadata[key]
+  return value === true || value === 'true' || value === 1 || value === '1'
+}
+
 function welcomeSkipMessage(eligibility?: WelcomeEligibilityResult | null): string {
   if (!eligibility) return 'Boas-vindas bloqueada por falta de decisao confiavel.'
   if (eligibility.code === 'WELCOME_SKIPPED_CLIENT_EXISTS') return 'Telefone ja salvo como cliente active; boas-vindas nao enviada.'
@@ -157,6 +163,11 @@ function ownInstanceNumbers() {
     process.env.EVOLUTION_INSTANCE_PHONE,
     process.env.WHATSAPP_INSTANCE_PHONE,
   ].map((value) => normalizePhone(value || '')).filter(Boolean)
+}
+
+function isExistingCustomerStatus(status: unknown) {
+  const normalized = String(status || '').toLowerCase()
+  return ['active', 'test_active', 'expired', 'overdue', 'vencido', 'inactive', 'cancelled', 'canceled', 'paid'].includes(normalized)
 }
 
 function buildPlansActivationMessage() {
@@ -205,6 +216,11 @@ async function maybeSendPlansActivation(input: {
         plans_activation_sent_at: now,
         plans_activation_status: 'dry_run',
         plans_activation_last_message_id: input.messageId || undefined,
+        inbound_flow_sent: true,
+        first_auto_flow_sent_at: metadataString(metadata, 'first_auto_flow_sent_at') || now,
+        last_auto_flow_type: 'plans_activation',
+        last_auto_flow_source: 'inbound_ads',
+        last_auto_flow_message_id: input.messageId || undefined,
       },
     }).catch(() => null)
     await recordOperationalEvent('PLANS_DRY_RUN', 'info', {
@@ -226,6 +242,11 @@ async function maybeSendPlansActivation(input: {
       plans_activation_failed_at: result.ok ? undefined : now,
       plans_activation_status: result.ok ? 'sent' : 'failed',
       plans_activation_last_message_id: input.messageId || undefined,
+      inbound_flow_sent: result.ok || metadataFlag(metadata, 'inbound_flow_sent'),
+      first_auto_flow_sent_at: result.ok ? metadataString(metadata, 'first_auto_flow_sent_at') || now : metadataString(metadata, 'first_auto_flow_sent_at') || undefined,
+      last_auto_flow_type: result.ok ? 'plans_activation' : metadataString(metadata, 'last_auto_flow_type') || undefined,
+      last_auto_flow_source: result.ok ? 'inbound_ads' : metadataString(metadata, 'last_auto_flow_source') || undefined,
+      last_auto_flow_message_id: result.ok ? input.messageId || undefined : metadataString(metadata, 'last_auto_flow_message_id') || undefined,
     },
   }).catch(() => null)
   await recordOperationalEvent(result.ok ? 'PLANS_SENT' : 'FLOW_FAILED', result.ok ? 'success' : 'error', {
@@ -290,6 +311,11 @@ async function maybeSendInstall(input: {
         welcome_flow_status: 'cancelled',
         welcome_flow_cancelled_at: now,
         welcome_cancel_reason: 'install_sent',
+        inbound_flow_sent: true,
+        first_auto_flow_sent_at: metadataString(metadata, 'first_auto_flow_sent_at') || now,
+        last_auto_flow_type: 'install',
+        last_auto_flow_source: 'inbound_ads',
+        last_auto_flow_message_id: input.messageId || undefined,
       },
     }).catch(() => null)
     await recordOperationalEvent('INSTALL_DRY_RUN', 'info', {
@@ -317,6 +343,11 @@ async function maybeSendInstall(input: {
       welcome_flow_status: 'cancelled',
       welcome_flow_cancelled_at: now,
       welcome_cancel_reason: 'install_sent',
+      inbound_flow_sent: ok || metadataFlag(metadata, 'inbound_flow_sent'),
+      first_auto_flow_sent_at: ok ? metadataString(metadata, 'first_auto_flow_sent_at') || now : metadataString(metadata, 'first_auto_flow_sent_at') || undefined,
+      last_auto_flow_type: ok ? 'install' : metadataString(metadata, 'last_auto_flow_type') || undefined,
+      last_auto_flow_source: ok ? 'inbound_ads' : metadataString(metadata, 'last_auto_flow_source') || undefined,
+      last_auto_flow_message_id: ok ? input.messageId || undefined : metadataString(metadata, 'last_auto_flow_message_id') || undefined,
     },
   }).catch(() => null)
   await recordOperationalEvent(ok ? 'INSTALL_SENT' : 'FLOW_FAILED', ok ? 'success' : 'error', {
@@ -392,6 +423,11 @@ function startWelcomeInBackground(input: {
           welcome_last_message_id: input.messageId || undefined,
           welcome_status: code,
           active_flow_type: 'welcome',
+          inbound_flow_sent: true,
+          first_auto_flow_sent_at: metadataString((input.client?.legacy_metadata && typeof input.client.legacy_metadata === 'object' && !Array.isArray(input.client.legacy_metadata) ? input.client.legacy_metadata : {}) as Record<string, unknown>, 'first_auto_flow_sent_at') || now,
+          last_auto_flow_type: 'welcome',
+          last_auto_flow_source: 'inbound_ads',
+          last_auto_flow_message_id: input.messageId || undefined,
         },
       }).catch(() => null)
       await recordOperationalEvent(code, code === 'WELCOME_SENT' ? 'success' : 'info', {
@@ -440,10 +476,12 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
   }
 
   if (inbound.fromMe) {
+    logInbound('INBOUND_IGNORED', { phone: inbound.phone, messageId: inbound.messageId || undefined, reason: 'fromMe', text: inbound.text })
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem enviada pela propria instancia ignorada.', phone: maskPhone(inbound.phone) }
   }
 
   if (ownInstanceNumbers().includes(inbound.phone)) {
+    logInbound('INBOUND_IGNORED', { phone: inbound.phone, messageId: inbound.messageId || undefined, reason: 'self_target', text: inbound.text })
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Numero da propria instancia ignorado.', phone: maskPhone(inbound.phone) }
   }
 
@@ -455,7 +493,14 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
 
   const adIntent = classifyInboundAdIntent(inbound.text)
   const isDeviceIntent = looksLikeDeviceAnswer(inbound.text)
-  const welcomeEligibility = isDeviceIntent ? null : await shouldSendWelcomeToPhone({
+  logInbound('INBOUND_CLASSIFIED', {
+    phone: inbound.phone,
+    messageId: inbound.messageId || undefined,
+    text: inbound.text,
+    classification: adIntent,
+    isDeviceIntent,
+  })
+  const welcomeEligibility: WelcomeEligibilityResult | null = isDeviceIntent ? null : await shouldSendWelcomeToPhone({
     phone: inbound.phone,
     text: inbound.text,
     messageId: inbound.messageId || undefined,
@@ -493,13 +538,15 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem inbound duplicada ignorada.', phone: maskPhone(inbound.phone) }
   }
 
-  if (adIntent === 'not_interested') {
+  if (adIntent === 'opt_out') {
     await updateClientOperationalState({
       client: operational.client,
       status: 'lead',
       metadataPatch: {
         opt_out_at: new Date().toISOString(),
         opt_out_reason: 'inbound_not_interested',
+        opt_out_message_id: inbound.messageId || undefined,
+        inbound_last_classification: adIntent,
         active_flow_type: 'stopped',
       },
     }).catch(() => null)
@@ -510,7 +557,72 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
       message: 'Lead informou que nao quer continuar.',
       metadata: { message_id: inbound.messageId || null },
     })
+    logInbound('LEAD_OPT_OUT', { phone: inbound.phone, messageId: inbound.messageId || undefined, classification: adIntent })
     return { ok: true, code: 'LEAD_OPT_OUT', message: 'Lead opt-out registrado; nenhum fluxo enviado.', phone: maskPhone(inbound.phone) }
+  }
+
+  if (adIntent === 'wrong_number') {
+    await updateClientOperationalState({
+      client: operational.client,
+      status: 'lead',
+      metadataPatch: {
+        wrong_number_at: new Date().toISOString(),
+        wrong_number_message_id: inbound.messageId || undefined,
+        inbound_last_classification: adIntent,
+        active_flow_type: 'stopped',
+      },
+    }).catch(() => null)
+    await recordOperationalEvent('LEAD_WRONG_NUMBER', 'info', {
+      client: operational.client,
+      phone: inbound.phone,
+      stage: 'novo_lead',
+      message: 'Lead informou numero errado; automacao bloqueada.',
+      metadata: { message_id: inbound.messageId || null, classification: adIntent },
+    })
+    logInbound('LEAD_WRONG_NUMBER', { phone: inbound.phone, messageId: inbound.messageId || undefined, classification: adIntent })
+    return { ok: true, code: 'LEAD_WRONG_NUMBER', message: 'Wrong number registrado; nenhum fluxo enviado.', phone: maskPhone(inbound.phone) }
+  }
+
+  if (isExistingCustomerStatus(operational.client?.status)) {
+    logInbound('INBOUND_IGNORED', {
+      phone: inbound.phone,
+      messageId: inbound.messageId || undefined,
+      reason: 'existing_client',
+      status: operational.client?.status,
+      classification: adIntent,
+    })
+    await recordOperationalEvent('INBOUND_IGNORED', 'info', {
+      client: operational.client,
+      phone: inbound.phone,
+      stage: 'novo_lead',
+      message: 'Cliente existente ignorado para fluxo automatico de lead novo.',
+      metadata: { message_id: inbound.messageId || null, classification: adIntent, status: operational.client?.status || null },
+    })
+    return { ok: true, code: 'INBOUND_IGNORED', message: 'Cliente existente; fluxo automatico de lead novo nao enviado.', phone: maskPhone(inbound.phone) }
+  }
+
+  const alreadyFlowSent = metadataFlag(operational.metadata, 'inbound_flow_sent') || Boolean(metadataString(operational.metadata, 'first_auto_flow_sent_at'))
+  const optOutAt = metadataString(operational.metadata, 'opt_out_at')
+  const wrongNumberAt = metadataString(operational.metadata, 'wrong_number_at')
+  if (optOutAt || wrongNumberAt || (alreadyFlowSent && !isDeviceIntent)) {
+    const reason = optOutAt ? 'opt_out' : wrongNumberAt ? 'wrong_number' : 'already_flow_sent'
+    logInbound('INBOUND_IGNORED', {
+      phone: inbound.phone,
+      messageId: inbound.messageId || undefined,
+      reason,
+      classification: adIntent,
+      alreadyFlowSent,
+    })
+    await recordOperationalEvent('INBOUND_IGNORED', 'info', {
+      client: operational.client,
+      phone: inbound.phone,
+      stage: 'novo_lead',
+      message: reason === 'already_flow_sent'
+        ? 'Fluxo inicial ja marcado como enviado; nova automacao ignorada.'
+        : 'Lead bloqueado por opt-out/wrong-number persistente.',
+      metadata: { message_id: inbound.messageId || null, classification: adIntent, reason, already_flow_sent: alreadyFlowSent },
+    })
+    return { ok: true, code: 'INBOUND_IGNORED', message: 'Automacao inbound bloqueada por marca persistente.', phone: maskPhone(inbound.phone) }
   }
 
   logInbound('INBOUND_MESSAGE_RECEIVED', {
@@ -652,6 +764,12 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
       welcome_status: 'WELCOME_STARTED',
       welcome_flow_status: 'running',
       active_flow_type: 'welcome',
+      inbound_flow_sent: true,
+      first_auto_flow_sent_at: startedAt,
+      last_auto_flow_type: adIntent === 'plans_activation' ? 'welcome_plans_activation' : 'welcome',
+      last_auto_flow_source: 'inbound_ads',
+      last_auto_flow_message_id: inbound.messageId || undefined,
+      inbound_last_classification: adIntent,
     },
   }).catch(() => null)
   await recordOperationalEvent('WELCOME_STARTED', 'info', {
@@ -659,7 +777,7 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     phone: inbound.phone,
     stage: 'novo_lead',
     message: 'Fluxo de boas-vindas iniciado em background.',
-    metadata: { message_id: inbound.messageId || null },
+    metadata: { message_id: inbound.messageId || null, classification: adIntent, flow: adIntent === 'plans_activation' ? 'welcome_plans_activation' : 'welcome' },
   })
   startWelcomeInBackground({
     phone: inbound.phone,
@@ -668,7 +786,15 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     startedAt,
     followUp: adIntent === 'plans_activation' ? 'plans_activation' : undefined,
   })
-  logInbound('WELCOME_STARTED', { phone: inbound.phone, background: true })
+  logInbound('INBOUND_FLOW_SENT', {
+    phone: inbound.phone,
+    messageId: inbound.messageId || undefined,
+    classification: adIntent,
+    flow: adIntent === 'plans_activation' ? 'welcome_plans_activation' : 'welcome',
+    reason: 'eligible_new_inbound',
+    historyMessageCount: welcomeEligibility.history?.messageCount,
+    alreadyFlowSent: false,
+  })
   return {
     ok: true,
     code: 'WELCOME_STARTED',

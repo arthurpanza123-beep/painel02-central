@@ -134,8 +134,7 @@ export async function inspectEvolutionConversationHistory(input: {
   const activeContext = hasActiveCustomerContext(recent)
   const reasons: string[] = []
 
-  if (recent.length >= threshold) reasons.push('recent_history_threshold')
-  if (previousInboundCount > 0) reasons.push('previous_inbound_history')
+  if (recent.length > threshold) reasons.push('message_count_gt_5')
   if (outboundCount > 0) reasons.push('previous_outbound_history')
   if (activeContext) reasons.push('active_customer_context')
 
