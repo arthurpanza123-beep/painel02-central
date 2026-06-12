@@ -94,6 +94,8 @@ assert(!/xtream/i.test(blessed), 'Blessed não deve mencionar Xtream.')
 assert(!/reload|recarregar/i.test(blessed), 'Blessed não deve mencionar RELOAD/RECARREGAR.')
 assert(blessed.includes('Valor: R$ 20,00'), 'Valor deve estar em BRL brasileiro.')
 assert(blessed.includes('Vencimento: 07/07/2026'), 'Vencimento deve estar em dd/mm/yyyy.')
+assert(/Tenha um ótimo entretenimento! 🎬/i.test(blessed), 'Blessed deve usar fechamento de entretenimento.')
+assert(!/Se precisar, eu te ajudo na configuração/i.test(blessed), 'Blessed não deve usar fechamento antigo.')
 assert(blessedMedia.length === 1, 'Blessed acesso ativado deve enviar uma única mídia.')
 assert(blessedMedia.some((part) => part.fileName === 'acesso-ativado.png'), 'Blessed deve enviar arte principal.')
 
@@ -111,6 +113,7 @@ assert(blessedTest.includes('Senha: 87654321'), 'Blessed teste deve enviar senha
 assert(!/Host:/i.test(blessedTest), 'Blessed teste não deve enviar Host.')
 assert(!/xtream/i.test(blessedTest), 'Blessed teste não deve mencionar Xtream.')
 assert(!/reload|recarregar/i.test(blessedTest), 'Blessed teste não deve mencionar RELOAD/RECARREGAR.')
+assert(/Tenha um ótimo entretenimento! 🎬/i.test(blessedTest), 'Blessed teste deve usar fechamento de entretenimento.')
 assert(blessedTestMedia.length === 1, 'Blessed teste deve enviar uma única mídia.')
 assert(blessedTestMedia[0].fileName === 'valores-central-play-plus.png', 'Blessed teste deve enviar a arte de valores.')
 assert(blessedTestMedia[0].caption === blessedTest, 'Blessed teste deve levar a legenda na própria imagem.')
@@ -129,6 +132,7 @@ assert(blessedUpdated.includes('Senha: 87654321'), 'Blessed atualizado deve envi
 assert(!/Host:/i.test(blessedUpdated), 'Blessed atualizado não deve enviar Host.')
 assert(!/xtream/i.test(blessedUpdated), 'Blessed atualizado não deve mencionar Xtream.')
 assert(!/reload|recarregar/i.test(blessedUpdated), 'Blessed atualizado não deve mencionar RELOAD/RECARREGAR.')
+assert(/Tenha um ótimo entretenimento! 🎬/i.test(blessedUpdated), 'Blessed atualizado deve usar fechamento de entretenimento.')
 assert(blessedUpdatedMedia.length === 0, 'Blessed atualizado deve ser uma mensagem única sem mídia duplicada.')
 
 const playsim = captionOf(buildFlowMessage('access_activated', {
@@ -145,7 +149,11 @@ const xcloud = captionOf(buildFlowMessage('access_activated', {
   app: 'XCloud',
   host: 'http://recordsway.shop:80',
 }))
-assert(xcloud.includes('*Host:* http://recordsway.shop:80'), 'XCloud deve enviar Host.')
+assert(!/Host:/i.test(xcloud), 'XCloud não deve enviar Host.')
+assert(xcloud.includes('*URL:* http://recordsway.shop:80'), 'XCloud deve enviar URL.')
+assert(/reload|recarregar/i.test(xcloud), 'XCloud deve orientar RELOAD/RECARREGAR.')
+assert(!/Agora é só abrir o aplicativo/i.test(xcloud), 'XCloud não deve usar frase antiga de abrir aplicativo.')
+assert(/Obrigado pela preferência e ótimo entretenimento/i.test(xcloud), 'XCloud deve usar fechamento atualizado.')
 
 for (const invalid of [
   { username: '*', password: '87654321' },

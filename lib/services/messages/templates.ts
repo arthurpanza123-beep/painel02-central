@@ -225,9 +225,9 @@ function credentialLines(ctx: MessageContext): string[] {
 
   if (isXcloudApp(ctx.app)) {
     return [
-      optional('Host', pick(ctx.host, ctx.dns)),
       optional('Usuario', pick(ctx.usuario, ctx.username)),
       optional('Senha', pick(ctx.senha, ctx.password)),
+      optional('URL', pick(ctx.host, ctx.dns)),
     ].filter((line): line is string => Boolean(line))
   }
 
@@ -258,7 +258,7 @@ function accessCredentialRequirements(ctx: MessageContext): Array<{ key: string;
   ]
 
   if (isXcloudApp(ctx.app)) {
-    return [{ key: 'host', label: 'Host', value: pick(ctx.host, ctx.dns, credentials?.host) }, ...common]
+    return [...common, { key: 'url', label: 'URL', value: pick(ctx.host, ctx.dns, credentials?.host) }]
   }
   if (/blessed/.test(app)) {
     return [{ key: 'provider', label: 'Provider', value: blessedProviderCode(ctx) }, ...common]
@@ -356,7 +356,7 @@ function buildBlessedCaption(ctx: MessageContext = {}, flow: 'test_created' | 'a
         : 'Seu acesso já está liberado.',
     flow === 'test_created' ? null : 'Agora é só abrir o aplicativo e entrar com os dados acima.',
     '',
-    'Se precisar, eu te ajudo na configuração. 🚀',
+    'Tenha um ótimo entretenimento! 🎬',
   ])
 }
 
@@ -579,11 +579,9 @@ export function buildAccessActivatedMessage(ctx: MessageContext = {}) {
     credentials.length ? ['', '*Dados de acesso:*', ...credentials].join('\n') : null,
     '',
     'Seu acesso já está liberado.',
-    isXcloud ? 'Agora é só abrir o aplicativo e entrar com suas credenciais.' : 'Agora é só abrir o aplicativo e entrar com seus dados.',
+    isXcloud ? 'clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : 'Agora é só abrir o aplicativo e entrar com seus dados.',
     '',
-    isXcloud ? 'Depois de entrar, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : null,
-    isXcloud ? '' : null,
-    'Se precisar, eu te ajudo na configuração. 🚀',
+    isXcloud ? 'Obrigado pela preferência e ótimo entretenimento' : 'Tenha um ótimo entretenimento! 🎬',
   ]
 
   const caption = joinMessage(baseCaption)
@@ -628,7 +626,7 @@ export function buildAccessUpdatedMessage(ctx: MessageContext = {}) {
     '',
     isXcloud ? 'Se precisar, clique em *RELOAD* ou *RECARREGAR* para atualizar a lista.' : null,
     isXcloud ? '' : null,
-    'Se precisar, eu te ajudo na configuração. 🚀',
+    'Tenha um ótimo entretenimento! 🎬',
   ])
 }
 
@@ -750,7 +748,7 @@ export function buildSecondScreenMessage(ctx: MessageContext = {}) {
       'Abra o aplicativo na segunda TV e entre com os dados acima.',
       null,
       '',
-      'Se precisar, eu te ajudo na configuração. 🚀',
+      'Tenha um ótimo entretenimento! 🎬',
     ])
   }
 

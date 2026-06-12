@@ -150,7 +150,7 @@ export function classifyInboundAdIntent(text: string): InboundAdIntent {
   if (!normalized) return 'other'
   if (/(nao quero|não quero|pare|parar|cancela|cancelar|sem interesse|nao tenho interesse)/i.test(text)) return 'not_interested'
   if (/ola seja bem vindo a central play plus atendimento online/.test(normalized)) return 'ad_greeting'
-  if (/(gostaria de conhecer os planos|conhecer os planos|quais sao os planos|quero conhecer os planos|gostaria de saber os planos|quero ativar|gostaria de ativar|como faco para ativar|saber como ativar|planos e saber como ativar)/.test(normalized)) return 'plans_activation'
+  if (/(gostaria de conhecer os planos|conhecer os planos|quais planos|quais sao os planos|quero conhecer os planos|gostaria de saber os planos|quero ativar|gostaria de ativar|como faco para ativar|saber como ativar|planos e saber como ativar)/.test(normalized)) return 'plans_activation'
   if (/(como funciona para usar|como funciona na minha tv|quero usar na minha tv|como funciona)/.test(normalized)) return 'device_question'
   if (/(quero saber mais|saber mais sobre a central play plus|quero saber mais sobre a central play plus|central play plus|tenho interesse|mais informacoes)/.test(normalized)) return 'welcome_interest'
   return 'other'
