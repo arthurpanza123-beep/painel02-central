@@ -32,6 +32,14 @@ export interface WelcomeEligibilityResult {
   textLooksLikeInitialContact?: boolean
 }
 
+export type InboundAdIntent =
+  | 'welcome_interest'
+  | 'device_question'
+  | 'plans_activation'
+  | 'ad_greeting'
+  | 'not_interested'
+  | 'other'
+
 type SupabaseRow = Record<string, unknown>
 
 function supabaseConfig() {
@@ -129,7 +137,23 @@ export function looksLikeInitialAdContact(text: string): boolean {
     return false
   }
 
-  return /(tenho interesse|quero saber mais|saber mais|quero fazer (um )?teste|fazer (um )?teste|teste gratis|quero teste|quero conhecer|como funciona|qual (e )?o valor|valores|pre[cç]o|planos|quero assinar|assinar agora|me chama|pode me passar|mais informa[cç]oes)/.test(normalized)
+  return /(ola seja bem vindo a central play plus atendimento online|central play plus|tenho interesse|quero saber mais|saber mais|quero fazer (um )?teste|fazer (um )?teste|teste gratis|quero teste|quero conhecer|gostaria de conhecer|como funciona|como funciona para usar|como funciona na minha tv|quero usar na minha tv|qual (e )?o valor|valores|pre[cç]o|planos|quais sao os planos|quero conhecer os planos|gostaria de saber os planos|quero assinar|assinar agora|quero ativar|gostaria de ativar|como faco para ativar|saber como ativar|me chama|pode me passar|mais informa[cç]oes)/.test(normalized)
+}
+
+export function classifyInboundAdIntent(text: string): InboundAdIntent {
+  const normalized = String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normalized) return 'other'
+  if (/(nao quero|não quero|pare|parar|cancela|cancelar|sem interesse|nao tenho interesse)/i.test(text)) return 'not_interested'
+  if (/ola seja bem vindo a central play plus atendimento online/.test(normalized)) return 'ad_greeting'
+  if (/(gostaria de conhecer os planos|conhecer os planos|quais sao os planos|quero conhecer os planos|gostaria de saber os planos|quero ativar|gostaria de ativar|como faco para ativar|saber como ativar|planos e saber como ativar)/.test(normalized)) return 'plans_activation'
+  if (/(como funciona para usar|como funciona na minha tv|quero usar na minha tv|como funciona)/.test(normalized)) return 'device_question'
+  if (/(quero saber mais|saber mais sobre a central play plus|quero saber mais sobre a central play plus|central play plus|tenho interesse|mais informacoes)/.test(normalized)) return 'welcome_interest'
+  return 'other'
 }
 
 export async function shouldSendWelcomeToPhone(input: string | {

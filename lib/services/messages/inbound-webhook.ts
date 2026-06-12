@@ -2,7 +2,7 @@ import { getEvolutionConfig } from '../evolution/config'
 import { maskPhone, sanitizeForLog } from '../evolution/mask'
 import { normalizePhone } from '../evolution/normalize-phone'
 import { buildInstallMessage, normalizeInstallDevice } from './install-templates'
-import { shouldSendWelcomeToPhone, type WelcomeEligibilityResult } from './inbound-classifier'
+import { classifyInboundAdIntent, shouldSendWelcomeToPhone, type WelcomeEligibilityResult } from './inbound-classifier'
 import {
   cancelWelcomeFlow,
   ensureInboundLead,
@@ -31,6 +31,9 @@ type InboundDecisionCode =
   | 'INSTALL_SKIPPED_RECENT_DUPLICATE'
   | 'FLOW_SKIPPED_DUPLICATE'
   | 'FLOW_FAILED'
+  | 'LEAD_OPT_OUT'
+  | 'PLANS_SENT'
+  | 'PLANS_DRY_RUN'
 
 export interface InboundWebhookResult {
   ok: boolean
@@ -57,6 +60,7 @@ const recentInstallByPhone = new Map<string, { timestamp: number; device: string
 const PROCESSED_TTL_MS = 6 * 60 * 60 * 1000
 const WELCOME_TTL_MS = Number(process.env.INBOUND_WELCOME_TTL_HOURS || 24) * 60 * 60 * 1000
 const INSTALL_TTL_MS = Number(process.env.INBOUND_INSTALL_TTL_HOURS || 24) * 60 * 60 * 1000
+const PLANS_TTL_MS = Number(process.env.INBOUND_PLANS_TTL_HOURS || 24) * 60 * 60 * 1000
 
 function boolEnv(value: string | undefined, fallback: boolean) {
   if (value == null || value === '') return fallback
@@ -143,6 +147,95 @@ function looksLikeDeviceAnswer(text: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
   return /(samsung|sansung|lg|roku|android|google tv|tcl|tv box|box|fire|stick|iphone|ios|celular|telefone|smart stb|smart up|tv antiga|pc|computador|notebook)/.test(normalized)
+}
+
+function ownInstanceNumbers() {
+  const config = getEvolutionConfig()
+  return [
+    config.operatorWhatsapp,
+    process.env.EVOLUTION_CONNECTED_PHONE,
+    process.env.EVOLUTION_INSTANCE_PHONE,
+    process.env.WHATSAPP_INSTANCE_PHONE,
+  ].map((value) => normalizePhone(value || '')).filter(Boolean)
+}
+
+function buildPlansActivationMessage() {
+  return [
+    'Olá, tudo bem?',
+    '',
+    'A Central Play Plus é uma experiência de entretenimento organizada para sua TV, celular ou TV Box.',
+    '',
+    'Temos opções de acesso de acordo com o tempo que você deseja usar.',
+    '',
+    'Para eu te passar a melhor orientação, me diga qual aparelho você quer usar:',
+    '',
+    'Smart TV, TV Box, Fire Stick, celular ou computador?',
+    '',
+    'Depois disso eu te explico os planos e o passo a passo de ativação.',
+  ].join('\n')
+}
+
+async function maybeSendPlansActivation(input: {
+  phone: string
+  client: OperationalClient | null
+  messageId?: string
+}) {
+  const metadata = input.client?.legacy_metadata && typeof input.client.legacy_metadata === 'object' && !Array.isArray(input.client.legacy_metadata) ? input.client.legacy_metadata : {}
+  const previous = metadataString(metadata, 'plans_activation_sent_at')
+  if (isRecentIso(previous, PLANS_TTL_MS)) {
+    await recordOperationalEvent('FLOW_SKIPPED_DUPLICATE', 'info', {
+      client: input.client,
+      phone: input.phone,
+      stage: 'contato',
+      message: 'Template de planos/ativacao duplicado ignorado.',
+      metadata: { flow: 'plans_activation', previous_sent_at: previous },
+    })
+    return { ok: true, skipped: true, code: 'PLANS_SKIPPED_RECENT_DUPLICATE' }
+  }
+
+  const config = getEvolutionConfig()
+  const dryRun = config.dryRun || !config.enabled
+  const message = buildPlansActivationMessage()
+  const now = new Date().toISOString()
+  if (dryRun) {
+    await updateClientOperationalState({
+      client: input.client,
+      status: 'lead',
+      metadataPatch: {
+        plans_activation_sent_at: now,
+        plans_activation_status: 'dry_run',
+        plans_activation_last_message_id: input.messageId || undefined,
+      },
+    }).catch(() => null)
+    await recordOperationalEvent('PLANS_DRY_RUN', 'info', {
+      client: input.client,
+      phone: input.phone,
+      stage: 'contato',
+      message: 'Template curto de planos/ativacao preparado.',
+      metadata: { flow: 'plans_activation' },
+    })
+    return { ok: true, dryRun: true, code: 'PLANS_DRY_RUN', preview: message }
+  }
+
+  const result = await sendText({ phone: input.phone, message, dryRun: false, context: { flow: 'plans_activation', source: 'inbound_ads' } })
+  await updateClientOperationalState({
+    client: input.client,
+    status: 'lead',
+    metadataPatch: {
+      plans_activation_sent_at: result.ok ? now : previous || undefined,
+      plans_activation_failed_at: result.ok ? undefined : now,
+      plans_activation_status: result.ok ? 'sent' : 'failed',
+      plans_activation_last_message_id: input.messageId || undefined,
+    },
+  }).catch(() => null)
+  await recordOperationalEvent(result.ok ? 'PLANS_SENT' : 'FLOW_FAILED', result.ok ? 'success' : 'error', {
+    client: input.client,
+    phone: input.phone,
+    stage: 'contato',
+    message: result.ok ? 'Template de planos/ativacao enviado.' : 'Falha ao enviar template de planos/ativacao.',
+    metadata: { flow: 'plans_activation', code: result.code },
+  })
+  return { ...result, preview: message }
 }
 
 async function maybeSendInstall(input: {
@@ -241,6 +334,7 @@ function startWelcomeInBackground(input: {
   client: OperationalClient | null
   messageId?: string
   startedAt: string
+  followUp?: 'plans_activation'
 }) {
   void (async () => {
     try {
@@ -308,6 +402,13 @@ function startWelcomeInBackground(input: {
         metadata: { flow: 'welcome', code, background: true },
       })
       logInbound(code, { phone: input.phone, welcome })
+      if (input.followUp === 'plans_activation') {
+        await maybeSendPlansActivation({
+          phone: input.phone,
+          client: input.client,
+          messageId: input.messageId,
+        }).catch((error) => logInbound('FLOW_FAILED', { phone: input.phone, flow: 'plans_activation', error: error instanceof Error ? error.message : String(error) }))
+      }
     } catch (error) {
       const now = new Date().toISOString()
       const message = error instanceof Error ? error.message : String(error)
@@ -342,12 +443,17 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem enviada pela propria instancia ignorada.', phone: maskPhone(inbound.phone) }
   }
 
+  if (ownInstanceNumbers().includes(inbound.phone)) {
+    return { ok: true, code: 'INBOUND_IGNORED', message: 'Numero da propria instancia ignorado.', phone: maskPhone(inbound.phone) }
+  }
+
   pruneCache(processedMessages, PROCESSED_TTL_MS)
   if (inbound.messageId && processedMessages.has(inbound.messageId)) {
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem inbound duplicada ignorada.', phone: maskPhone(inbound.phone) }
   }
   if (inbound.messageId) processedMessages.set(inbound.messageId, Date.now())
 
+  const adIntent = classifyInboundAdIntent(inbound.text)
   const isDeviceIntent = looksLikeDeviceAnswer(inbound.text)
   const welcomeEligibility = isDeviceIntent ? null : await shouldSendWelcomeToPhone({
     phone: inbound.phone,
@@ -385,6 +491,26 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
       metadata: { message_id: inbound.messageId },
     })
     return { ok: true, code: 'INBOUND_IGNORED', message: 'Mensagem inbound duplicada ignorada.', phone: maskPhone(inbound.phone) }
+  }
+
+  if (adIntent === 'not_interested') {
+    await updateClientOperationalState({
+      client: operational.client,
+      status: 'lead',
+      metadataPatch: {
+        opt_out_at: new Date().toISOString(),
+        opt_out_reason: 'inbound_not_interested',
+        active_flow_type: 'stopped',
+      },
+    }).catch(() => null)
+    await recordOperationalEvent('LEAD_OPT_OUT', 'info', {
+      client: operational.client,
+      phone: inbound.phone,
+      stage: 'novo_lead',
+      message: 'Lead informou que nao quer continuar.',
+      metadata: { message_id: inbound.messageId || null },
+    })
+    return { ok: true, code: 'LEAD_OPT_OUT', message: 'Lead opt-out registrado; nenhum fluxo enviado.', phone: maskPhone(inbound.phone) }
   }
 
   logInbound('INBOUND_MESSAGE_RECEIVED', {
@@ -540,6 +666,7 @@ export async function handleEvolutionInboundWebhook(payload: unknown): Promise<I
     client: operational.client,
     messageId: inbound.messageId || undefined,
     startedAt,
+    followUp: adIntent === 'plans_activation' ? 'plans_activation' : undefined,
   })
   logInbound('WELCOME_STARTED', { phone: inbound.phone, background: true })
   return {
